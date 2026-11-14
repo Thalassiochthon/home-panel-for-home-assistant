@@ -1,0 +1,43 @@
+title: Мой дом
+views:
+  - title: Дом
+    path: home
+    type: panel
+    cards:
+      - type: custom:moy-dom-dashboard
+        outdoor_temperature: sensor.outdoor_temperature
+        quick_lights:
+          - [light.kitchen_ceiling, Потолочный свет]
+        zones:
+          - name: Первый этаж
+            rooms:
+              - id: kitchen
+                name: Кухня
+                lights:
+                  - [light.kitchen_ceiling, Потолочный свет]
+                  - [switch.kitchen_light, Подсветка]
+                temperature: sensor.kitchen_temperature
+                humidity: sensor.kitchen_humidity
+                climate: climate.kitchen_thermostat
+                ir: climate.kitchen_ir
+                details:
+                  - [fan.kitchen, Вентиляция]
+                  - [humidifier.kitchen, Увлажнитель]
+          - name: Участок
+            rooms:
+              - id: garden
+                name: Сад
+                lights:
+                  - [light.garden, Дорожка]
+        alerts:
+          - [binary_sensor.kitchen_leak, Протечка на кухне]
+          - [binary_sensor.kitchen_smoke, Дым на кухне]
+        more:
+          - [Камера, camera.entry]
+          - [Камеры, /lovelace/cameras]
+          - [Охрана, alarm_control_panel.home]
+          - [Пылесос, vacuum.robot]
+          - [Телевизор, media_player.tv]
+          - [Автоматизации, /config/automation]
+          - [Энергия, /energy]
+          - [Обзор, /lovelace]

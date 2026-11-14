@@ -1,0 +1,7 @@
+title: Мой дом
+views:
+  - title: Дом
+    path: home
+    type: panel
+    cards:
+      - type: custom:moy-dom-dashboard
