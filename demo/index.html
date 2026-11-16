@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home Panel — интерактивное демо</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e7e8de; color: #2b3328; font: 15px system-ui, sans-serif; }
+    .demo-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 12px clamp(12px, 4vw, 32px); background: #18211b; color: #f6f7f0; }
+    .demo-bar small { display: block; color: #c0c9bf; margin-top: 3px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; }
+    select, button { font: inherit; }
+    select { min-height: 44px; border: 1px solid #667969; border-radius: 8px; padding: 4px 10px;
+      background: #293a30; color: white; }
+    moy-dom-dashboard, moy-dom-panel { display: block; min-height: calc(100dvh - 68px); }
+    dialog { max-width: calc(100% - 24px); border: 0; border-radius: 12px; padding: 20px; }
+    dialog::backdrop { background: #0008; }
+  </style>
+</head>
+<body>
+  <header class="demo-bar">
+    <div><strong>Интерактивное демо</strong><small>Вымышленные устройства · команды меняют только демо</small></div>
+    <div class="controls">
+      <select id="palette" aria-label="Цветовая палитра">
+        <option value="pistachio">Фисташковая</option>
+        <option value="stone">Песочная</option>
+        <option value="slate">Сланцевая</option>
+        <option value="clay">Терракотовая</option>
+      </select>
+      <select id="theme" aria-label="Режим оформления">
+        <option value="auto">Авто по солнцу</option>
+        <option value="light">Светлая</option>
+        <option value="dark">Тёмная</option>
+      </select>
+    </div>
+  </header>
+  <moy-dom-dashboard></moy-dom-dashboard>
+  <dialog id="details"><h2></h2><p></p><form method="dialog"><button>Закрыть</button></form></dialog>
+  <script src="../moy-dom.js"></script>
+  <script src="demo.js" defer></script>
+</body>
+</html>
