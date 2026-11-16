@@ -1,4 +1,4 @@
-title: Мой дом
+title: Home Panel
 views:
   - title: Дом
     path: home

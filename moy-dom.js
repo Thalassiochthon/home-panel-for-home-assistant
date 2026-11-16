@@ -45,7 +45,7 @@ function discover(hass) {
 }
 
 function validate(config) {
-  const ensure = (ok, path) => { if (!ok) throw new Error("Мой дом: проверьте " + path); };
+  const ensure = (ok, path) => { if (!ok) throw new Error("Home Panel: проверьте " + path); };
   const entity = (id, domains) => typeof id === "string" && entityPattern.test(id) &&
     (!domains || domains.includes(domainOf(id)));
   const label = value => typeof value === "string" && Boolean(value.trim());
@@ -158,7 +158,7 @@ class MoyDomPanel extends HTMLElement {
       item.dataset.section = id;
       this.nav.append(item);
     }
-    toolbar.append(element("strong", "", "Мой дом"), this.nav);
+    toolbar.append(element("strong", "", "Home Panel"), this.nav);
     const body = element("div", "body");
     this.floors = element("nav", "floors");
     this.floors.setAttribute("aria-label", "Этажи и участок");
@@ -863,7 +863,7 @@ customElements.define("moy-dom-dashboard", MoyDomDashboard);
 window.customCards ??= [];
 window.customCards.push({
   type: "moy-dom-dashboard",
-  name: "Мой дом",
+  name: "Home Panel",
   description: "Панель дома с автоматическим подбором помещений и устройств",
   preview: true,
 });
