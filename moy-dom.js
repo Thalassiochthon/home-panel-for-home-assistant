@@ -44,6 +44,20 @@ function discover(hass) {
   return { zones: [...zones.values()].sort((a, b) => a.level - b.level), more, alerts };
 }
 
+function matchingEntities(hass, query) {
+  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return Object.entries(hass?.states ?? {})
+    .filter(([id, state]) => {
+      if (hass.entities?.[id]?.hidden) return false;
+      const name = state.attributes?.friendly_name || id;
+      const text = (name + " " + id).toLocaleLowerCase();
+      return words.every(word => text.includes(word));
+    })
+    .map(([id, state]) => [id, state.attributes?.friendly_name || id])
+    .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]));
+}
+
 function validate(config) {
   const ensure = (ok, path) => { if (!ok) throw new Error("Home Panel: проверьте " + path); };
   const entity = (id, domains) => typeof id === "string" && entityPattern.test(id) &&
@@ -422,14 +436,14 @@ class MoyDomPanel extends HTMLElement {
       }, "primary"));
   }
 
-  detailsRow(id, name) {
+  detailsRow(id, name, bindings = this.bindings) {
     const row = button("", () => this.moreInfo(id), "detail-row");
     const status = element("span", "muted");
     row.append(element("span", "", name), status, element("span", "chevron", "›"));
-    this.bindings.push(() => {
+    bindings.push(() => {
       const entity = this.state(id);
       row.disabled = !entity;
-      setText(status, available(entity) ? (entity.state === "on" ? "Включено" : entity.state === "off" ? "Выключено" : "Открыть") : "Недоступно");
+      setText(status, available(entity) ? (entity.state === "on" ? "Включено" : entity.state === "off" ? "Выключено" : "Открыть") : entity ? "Недоступно" : "Не найдено");
     });
     return row;
   }
@@ -598,6 +612,38 @@ class MoyDomPanel extends HTMLElement {
       } else list.append(this.detailsRow(destination, name));
     }
     if (entries.length) this.content.append(list);
+    this.renderEntitySearch();
+  }
+
+  renderEntitySearch() {
+    const section = element("section", "room links");
+    const input = element("input", "entity-search");
+    input.type = "search";
+    input.placeholder = "Например, розетка или switch";
+    input.setAttribute("aria-label", "Поиск по названию или ID сущности");
+    const status = element("p", "muted");
+    status.setAttribute("role", "status");
+    const list = element("div");
+    let rows = [];
+    let previous = "";
+    const update = () => {
+      const results = matchingEntities(this.home, input.value);
+      const visible = results.slice(0, 30);
+      const key = JSON.stringify(visible);
+      if (key !== previous) {
+        previous = key;
+        rows = [];
+        list.replaceChildren(...visible.map(([id, name]) => this.detailsRow(id, name, rows)));
+      }
+      for (const refresh of rows) refresh();
+      setText(status, !input.value.trim() ? "Введите название, тип или ID сущности." :
+        !results.length ? "Ничего не найдено." :
+        results.length > visible.length ? "Показаны 30 из " + results.length + ". Уточните запрос." : "");
+    };
+    input.addEventListener("input", update);
+    section.append(element("h2", "room-name", "Все сущности"), input, status, list);
+    this.content.append(section);
+    this.bindings.push(update);
   }
 
   appearancePicker(key, title, options) {
@@ -819,6 +865,8 @@ dialog::backdrop {background:#10170db5}
   border:1px solid var(--line); border-radius:10px; padding:5px 6px; font-size:13px; cursor:pointer; }
 .choice input:checked + span { background:var(--accent); border-color:var(--olive); font-weight:650; }
 .choice input:focus-visible + span { outline:2px solid var(--olive); outline-offset:2px; }
+.entity-search { width:100%; min-height:44px; padding:8px 12px; font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; }
+.entity-search:focus-visible { outline:2px solid var(--olive); outline-offset:2px; }
 .swatch { flex:none; width:13px; height:13px; border-radius:50%; background:var(--swatch); }
 .appearance-note { margin-top:9px; }
 

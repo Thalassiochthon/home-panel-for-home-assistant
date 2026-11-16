@@ -38,6 +38,11 @@ add("camera.entry", "Входная камера", "idle", null);
 add("alarm_control_panel.home", "Охрана", "disarmed", null);
 add("vacuum.robot", "Робот-пылесос", "docked", null);
 add("media_player.tv", "Телевизор", "off", null);
+add("switch.desk_outlet", "Розетка у стола", "off", "living");
+add("button.restart_sensor", "Перезапустить датчик", "unknown", "hall");
+add("cover.bedroom_blinds", "Шторы спальни", "closed", "bedroom");
+add("scene.evening", "Вечерний свет", "unknown", null);
+add("script.goodnight", "Спокойной ночи", "off", null);
 add("sun.sun", "Солнце", "above_horizon", null);
 
 function publish() {
