@@ -122,6 +122,27 @@ function element(tag, className, text) {
   return node;
 }
 
+// Inline symbols also work in the standalone demo without the HA frontend.
+const iconPaths = {
+  rooms: "M3 3h18v18H3z M3 12h7m0-9v9m5 3v6m0-9h6",
+  lights: "M8.5 15c0-2-3-3.3-3-7a6.5 6.5 0 0 1 13 0c0 3.7-3 5-3 7z M9 18h6m-5 3h4",
+  climate: "M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0z M12 8v9",
+  more: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z",
+  switch: "M7 8h8a4 4 0 0 1 0 8H7a4 4 0 0 1 0-8z M13 12h2",
+};
+
+function pictogram(kind) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "pictogram");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", iconPaths[kind]);
+  svg.append(path);
+  return svg;
+}
+
 function button(text, handler, className) {
   const node = element("button", className, text);
   node.type = "button";
@@ -169,6 +190,7 @@ class MoyDomPanel extends HTMLElement {
     this.nav.setAttribute("aria-label", "Разделы дома");
     for (const [id, name] of sections) {
       const item = button(name, () => this.select(this.zone, id));
+      item.prepend(pictogram(id));
       item.dataset.section = id;
       this.nav.append(item);
     }
@@ -461,7 +483,13 @@ class MoyDomPanel extends HTMLElement {
     toggle.type = "checkbox";
     toggle.setAttribute("role", "switch");
     toggle.setAttribute("aria-label", roomName + " — " + name);
-    label.append(element("span", "", name), state, toggle);
+    const icon = element("span", "device-icon");
+    icon.setAttribute("aria-hidden", "true");
+    const fallback = pictogram(domainOf(id) === "switch" ? "switch" : "lights");
+    const custom = element("ha-icon");
+    custom.hidden = true;
+    icon.append(fallback, custom);
+    label.append(icon, element("span", "", name), state, toggle);
     row.append(label);
     const dimmer = element("label", "dimmer");
     const range = element("input");
@@ -492,6 +520,12 @@ class MoyDomPanel extends HTMLElement {
       const entity = this.state(id);
       const on = entity?.state === "on";
       const pending = this.pending.has(id);
+      const assigned = this.home?.entities?.[id]?.icon || entity?.attributes?.icon;
+      const useCustom = Boolean(assigned && customElements.get("ha-icon"));
+      if (useCustom && custom.icon !== assigned) custom.icon = assigned;
+      custom.hidden = !useCustom;
+      fallback.style.display = useCustom ? "none" : "";
+      icon.classList.toggle("lit", this.connected && on);
       toggle.checked = on;
       toggle.disabled = !this.connected || !available(entity) || pending;
       setText(state, pending ? "Ожидание ответа" : !this.connected ? "Нет связи" : !available(entity) ? "Недоступно" : on ? "Включено" : "Выключено");
@@ -821,9 +855,14 @@ h2 {margin:0 0 7px;font-size:1.2rem;letter-spacing:-.035em}
 .room-meta {display:block;color:var(--muted);font-size:.78rem;font-weight:400;margin-top:5px}
 .chevron {font-size:1.25rem;font-weight:400;color:var(--olive)}
 .devices {padding:0 0 16px}
-.light-label {display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:3px 12px;min-height:58px;padding:7px 0;overflow-wrap:anywhere}
-.device-state {grid-row:2;grid-column:1;font-size:.73rem;color:var(--muted)}
-.switch {grid-row:1/3;grid-column:2;appearance:none;width:46px;height:28px;background:var(--track);border:0;border-radius:16px;position:relative;margin:0;cursor:pointer}
+.pictogram {width:21px;height:21px;flex:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.device-icon {display:grid;place-items:center;grid-row:1/3;grid-column:1;color:var(--muted);--mdc-icon-size:21px}
+.device-icon.lit {color:var(--olive)}
+.device-icon.lit .pictogram {fill:currentColor}
+.device-icon [hidden] {display:none}
+.light-label {display:grid;grid-template-columns:24px minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:3px 12px;min-height:58px;padding:7px 0;overflow-wrap:anywhere}
+.device-state {grid-row:2;grid-column:2;font-size:.73rem;color:var(--muted)}
+.switch {grid-row:1/3;grid-column:3;appearance:none;width:46px;height:28px;background:var(--track);border:0;border-radius:16px;position:relative;margin:0;cursor:pointer}
 .switch::before {content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--knob);box-shadow:0 1px 3px #0002;transition:transform .15s}
 .switch:checked {background:var(--active)}
 .switch:checked::before {transform:translateX(18px)}
@@ -848,7 +887,7 @@ select {max-width:65%;min-height:44px;border:1px solid var(--line);border-radius
 .error {margin:4px 0}
 .links {margin-top:14px}
 .navigation {display:flex;gap:4px}
-.navigation button {border:0;background:transparent;border-radius:10px;color:var(--muted);font-size:.86rem;padding:5px 12px}
+.navigation button {display:flex;align-items:center;justify-content:center;gap:6px;border:0;background:transparent;border-radius:10px;color:var(--muted);font-size:.86rem;padding:5px 12px}
 .navigation button[aria-pressed=true] {color:var(--ink);background:var(--accent);font-weight:700}
 dialog {width:min(460px,calc(100% - 24px));max-height:85dvh;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--paper);color:var(--ink)}
 dialog::backdrop {background:#10170db5}
@@ -875,7 +914,7 @@ dialog::backdrop {background:#10170db5}
   .body {padding:0 12px calc(74px + env(safe-area-inset-bottom))}
   .toolbar {min-height:46px;margin-bottom:12px}
   .navigation {position:fixed;inset:auto 0 0;z-index:2;padding:5px 8px calc(5px + env(safe-area-inset-bottom));background:var(--paper);border-top:1px solid var(--line)}
-  .navigation button {flex:1;padding:4px}
+  .navigation button {flex:1;flex-direction:column;gap:2px;padding:4px}
   .overview-grid,.overview-grid:has(> .stack) {grid-template-columns:minmax(0,1fr);gap:12px}
   .stack {gap:12px}
   .hero {padding:15px 14px 8px}
