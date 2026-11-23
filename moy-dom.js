@@ -124,6 +124,9 @@ function element(tag, className, text) {
 
 // Inline symbols also work in the standalone demo without the HA frontend.
 const iconPaths = {
+  "mdi:ceiling-light": "M12 2v6m-9 9a9 9 0 0 1 18 0z M10 20h4",
+  "mdi:track-light": "M2 5h20 M5 5v4l-3 5 4 2 3-5-4-2 M15 5v4l2 6 4-2-2-6z",
+  "mdi:lamp": "M7 4h10l3 10H4z M12 14v6m-5 1h10",
   rooms: "M3 3h18v18H3z M3 12h7m0-9v9m5 3v6m0-9h6",
   lights: "M8.5 15c0-2-3-3.3-3-7a6.5 6.5 0 0 1 13 0c0 3.7-3 5-3 7z M9 18h6m-5 3h4",
   climate: "M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0z M12 8v9",
@@ -411,7 +414,7 @@ class MoyDomPanel extends HTMLElement {
           setText(status, available(entity) ?
             "Сейчас " + valueText(entity.attributes.current_temperature, "°") +
             " · задано " + valueText(entity.attributes.temperature, "°") + " · " +
-            (actions[entity.attributes.hvac_action] || modes[entity.state] || entity.state) : "Термостат недоступен");
+            ([modes[entity.state] || entity.state, actions[entity.attributes.hvac_action]].filter(Boolean).join(" · ")) : "Термостат недоступен");
         });
         section.append(climate);
       }
@@ -477,7 +480,7 @@ class MoyDomPanel extends HTMLElement {
   lightView(id, name, roomName, showDimmer = true) {
     const wrapper = element("div", "device");
     const row = element("div", "light-row");
-    const label = element("label", "light-label");
+    const label = element("div", "light-label");
     const state = element("span", "device-state");
     const toggle = element("input", "switch");
     toggle.type = "checkbox";
@@ -489,7 +492,10 @@ class MoyDomPanel extends HTMLElement {
     const custom = element("ha-icon");
     custom.hidden = true;
     icon.append(fallback, custom);
-    label.append(icon, element("span", "", name), state, toggle);
+    const details = button("", () => this.moreInfo(id), "device-details");
+    details.setAttribute("aria-label", name + " — подробности");
+    details.append(icon, element("span", "", name + " ›"), state);
+    label.append(details, toggle);
     row.append(label);
     const dimmer = element("label", "dimmer");
     const range = element("input");
@@ -521,6 +527,9 @@ class MoyDomPanel extends HTMLElement {
       const on = entity?.state === "on";
       const pending = this.pending.has(id);
       const assigned = this.home?.entities?.[id]?.icon || entity?.attributes?.icon;
+      const path = iconPaths[assigned] || iconPaths[domainOf(id) === "switch" ? "switch" : "lights"];
+      if (fallback.firstChild.getAttribute("d") !== path) fallback.firstChild.setAttribute("d", path);
+      details.disabled = !entity;
       const useCustom = Boolean(assigned && customElements.get("ha-icon"));
       if (useCustom && custom.icon !== assigned) custom.icon = assigned;
       custom.hidden = !useCustom;
@@ -860,7 +869,8 @@ h2 {margin:0 0 7px;font-size:1.2rem;letter-spacing:-.035em}
 .device-icon.lit {color:var(--olive)}
 .device-icon.lit .pictogram {fill:currentColor}
 .device-icon [hidden] {display:none}
-.light-label {display:grid;grid-template-columns:24px minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:3px 12px;min-height:58px;padding:7px 0;overflow-wrap:anywhere}
+.light-label {display:flex;align-items:center;gap:12px}
+.device-details {flex:1;min-width:0;color:inherit;font:inherit;text-align:left;background:transparent;border:0;display:grid;grid-template-columns:26px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;gap:3px 12px;min-height:58px;padding:7px 0;overflow-wrap:anywhere}
 .device-state {grid-row:2;grid-column:2;font-size:.73rem;color:var(--muted)}
 .switch {grid-row:1/3;grid-column:3;appearance:none;width:46px;height:28px;background:var(--track);border:0;border-radius:16px;position:relative;margin:0;cursor:pointer}
 .switch::before {content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--knob);box-shadow:0 1px 3px #0002;transition:transform .15s}

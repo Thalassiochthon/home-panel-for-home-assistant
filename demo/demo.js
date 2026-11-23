@@ -22,7 +22,9 @@ add("light.living_floor", "Торшер", "off", "living");
 add("light.living_strip", "Подсветка", "on", "living");
 add("light.kitchen", "Свет на кухне", "off", "kitchen");
 add("light.hall", "Свет в прихожей", "unavailable", "hall");
-add("light.bedroom", "Свет в спальне", "off", "bedroom");
+add("light.pendant", "Подвес", "off", "bedroom", { icon: "mdi:ceiling-light" });
+add("light.spots", "Точечный свет", "off", "bedroom", { icon: "mdi:track-light" });
+add("light.bedside", "Ночник", "on", "bedroom", { icon: "mdi:lamp" });
 add("light.yard", "Садовые фонари", "off", "yard");
 add("sensor.living_temperature", "Температура гостиной", "22.8", "living", { device_class: "temperature" });
 add("sensor.kitchen_temperature", "Температура кухни", "23.4", "kitchen", { device_class: "temperature" });
@@ -33,6 +35,9 @@ add("climate.living", "Термостат гостиной", "heat", "living", {
   current_temperature: 22.8, temperature: 23, min_temp: 16, max_temp: 30,
   target_temp_step: 0.5, hvac_modes: ["off", "heat", "cool"], hvac_action: "idle",
   preset_modes: ["none", "eco", "sleep"], preset_mode: "none",
+});
+add("climate.bedroom", "Термостат спальни", "heat", "bedroom", {
+  ...states["climate.living"].attributes, friendly_name: "Термостат спальни", current_temperature: 21.6,
 });
 add("camera.entry", "Входная камера", "idle", null);
 add("alarm_control_panel.home", "Охрана", "disarmed", null);
@@ -71,6 +76,12 @@ card.setConfig({ outdoor_temperature: "sensor.outdoor_temperature" });
 publish();
 const params = new URLSearchParams(location.search);
 const panel = card.querySelector("moy-dom-panel");
+if (params.get("room") === "bedroom") {
+  panel.zone = panel.zones.findIndex(zone => zone.rooms.some(room => room.id === "area:bedroom"));
+  panel.room = panel.zones[panel.zone].rooms.find(room => room.id === "area:bedroom");
+  panel.section = "rooms";
+  panel.renderSection();
+}
 for (const key of ["palette", "theme"]) {
   const picker = document.getElementById(key);
   const requested = params.get(key);
