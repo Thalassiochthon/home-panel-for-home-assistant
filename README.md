@@ -8,6 +8,8 @@ Home Panel — кастомный дашборд для Home Assistant с обз
 
 ![Главная панель на телефоне](demo/home-mobile.jpg)
 
+[Сравнение мобильной сводки до и после](demo/home-comparison.jpg)
+
 ## Установка
 
 1. Скачайте `moy-dom.js` и скопируйте его в `/config/www/`.

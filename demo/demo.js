@@ -61,8 +61,8 @@ add("switch.desk_outlet", "Розетка у стола", "off", "living");
 add("button.restart_sensor", "Перезапустить датчик", "unknown", "hall");
 add("cover.bedroom_blinds", "Шторы спальни", "closed", "bedroom");
 add("binary_sensor.occupied", "Присутствие", "on", null);
-add("scene.night", "Спокойной ночи", "unknown", null);
-add("scene.arrival", "Вернулись домой", "unknown", null);
+add("scene.night", "Спокойной ночи", "unknown", null, {icon:"mdi:weather-night"});
+add("scene.arrival", "Вернулись домой", "unknown", null, {icon:"mdi:home-import-outline"});
 add("scene.evening", "Вечерний свет", "unknown", null);
 add("script.goodnight", "Спокойной ночи", "off", null);
 add("sun.sun", "Солнце", "above_horizon", null);
@@ -160,5 +160,6 @@ card.addEventListener("hass-more-info", event => {
   } else if (state.entity_id === "alarm_control_panel.home") {
     details.querySelector("p").textContent = "Охрана снята. Это демонстрация статуса Alarmo.";
   }
+  details.dataset.theme = panel.theme;
   details.showModal();
 });

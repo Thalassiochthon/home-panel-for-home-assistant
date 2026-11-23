@@ -131,6 +131,9 @@ const iconPaths = {
   power: "M14 2 5 14h6l-1 8 9-13h-6z",
   settings: "M3 6h6m5 0h7 M3 12h11m5 0h2 M3 18h2m5 0h11 M9 3v6m6 0v6M7 15v6",
   presence: "M2 11l10-8 10 8 M5 10v11h14V10 M9 21v-6h6v6",
+  offline: "M3 3l18 18 M2 9l2-1m4-2a16 16 0 0 1 14 3 M5 13a11 11 0 0 1 3-2m5-1a12 12 0 0 1 6 3 M8 16a6 6 0 0 1 5-1 M12 20h.01",
+  "mdi:weather-night": "M19.8 14.6A8.5 8.5 0 0 1 9.4 4.2 8.5 8.5 0 1 0 19.8 14.6z",
+  "mdi:home-import-outline": "M3 11 12 3l9 8v9h-7 M8 11l4 4-4 4 M12 15H2",
   shield: "M12 2l8 3v6c0 5-4 9-8 11-4-2-8-6-8-11V5z",
   scene: "M7 4l13 8-13 8z",
   rooms: "M3 3h18v18H3z M3 12h7m0-9v9m5 3v6m0-9h6",
@@ -341,6 +344,7 @@ class MoyDomPanel extends HTMLElement {
     const rooms = this.zones.flatMap(zone => zone.rooms);
     const metric = (name, icon, open, read, featured = false) => {
       const cell = button("", open, "home-metric" + (featured ? " featured" : ""));
+      cell.dataset.kind = icon;
       const label = element("span", "metric-label", name);
       label.prepend(pictogram(icon));
       const value = element("strong");
@@ -349,8 +353,10 @@ class MoyDomPanel extends HTMLElement {
       strip.append(cell);
       this.bindings.push(() => {
         const [reading, caption] = this.connected ? read() : ["—", "Нет связи"];
+        value.classList.toggle("word-value", reading === "По комнатам");
         setText(value, reading);
         setText(note, caption);
+        if (icon === "lights") cell.setAttribute("aria-label", "Свет по всему дому · " + reading + " · " + caption);
       });
     };
     for (const [key, name, icon, suffix] of [["temperature", "Температура", "climate", "°"], ["humidity", "Влажность", "humidity", "%"]]) {
@@ -369,10 +375,10 @@ class MoyDomPanel extends HTMLElement {
       }, key === "temperature");
     }
     const lights = [...this.allLights.values()];
-    if (lights.length) metric("Свет включён", "lights", () => this.openLights(lights), () => {
+    if (lights.length) metric("Свет", "lights", () => this.openLights(lights), () => {
       const states = lights.map(({id}) => this.state(id)?.state);
       const known = states.some(state => state === "on" || state === "off");
-      return [known ? String(states.filter(state => state === "on").length) : "—", known ? "По всему дому" : "Нет показаний"];
+      return [known ? String(states.filter(state => state === "on").length) : "—", known ? "Включено" : "Нет показаний"];
     });
     if (this.config.power_meter) metric(this.config.power_scope === "home" ? "Мощность дома" : "Мощность прибора", "power", () => this.moreInfo(this.config.power_meter), () => {
       const meter = this.state(this.config.power_meter);
@@ -389,7 +395,7 @@ class MoyDomPanel extends HTMLElement {
       const empty = element("p", "muted");
       list.append(empty);
       const rows = lights.map(({id, name, room}) => {
-        const row = this.lightView(id, room + " · " + name, "", false);
+        const row = this.lightView(id, name, room, false);
         list.append(row);
         return {id, row};
       });
@@ -426,7 +432,7 @@ class MoyDomPanel extends HTMLElement {
     if (presence) {
       const value = element("strong");
       const item = element("div", "status-item");
-      item.append(pictogram("presence"), element("span", "", "Присутствие"), value);
+      item.append(pictogram("presence"), element("span", "sr-only", "Присутствие"), value);
       statuses.append(item);
       this.bindings.push(() => {
         const state = this.connected && this.state(presence)?.state;
@@ -436,14 +442,16 @@ class MoyDomPanel extends HTMLElement {
     if (alarm) {
       const item = button("", () => this.moreInfo(alarm), "status-item");
       const value = element("strong");
-      item.append(pictogram("shield"), element("span", "", "Охрана ›"), value);
+      item.append(pictogram("shield"), value, element("span", "chevron", "›"));
       statuses.append(item);
-      const labels = { disarmed:"Снята", armed_away:"Под охраной", armed_home:"Охрана дома",
+      const labels = { disarmed:"Охрана снята", armed_away:"Под охраной", armed_home:"Охрана дома",
         armed_night:"Ночная охрана", armed_vacation:"В отпуске", armed_custom_bypass:"Частичная охрана",
         arming:"Постановка", disarming:"Снятие", pending:"Задержка входа", triggered:"Тревога" };
       this.bindings.push(() => {
         const entity = this.state(alarm);
         setText(value, this.connected && available(entity) ? labels[entity.state] || entity.state : "Нет данных");
+        item.setAttribute("aria-label", "Состояние охраны · " + value.textContent);
+        item.classList.toggle("alarm-active", this.connected && entity?.state === "triggered");
         item.disabled = !this.connected || !entity;
       });
     }
@@ -451,10 +459,12 @@ class MoyDomPanel extends HTMLElement {
     main.append(hero);
     const lights = [...this.allLights.values()];
     const issues = button("", () => this.openLights(lights, true), "issues");
+    const problem = element("span");
+    issues.append(pictogram("offline"), problem, element("span", "chevron", "›"));
     this.bindings.push(() => {
       const count = lights.filter(({id}) => !["on", "off"].includes(this.state(id)?.state)).length;
       issues.hidden = !this.connected || !count;
-      setText(issues, "Свет без связи · " + count + "  ›");
+      setText(problem, "Свет без связи · " + count);
     });
     main.append(issues);
     if (lights.length || this.quick.length) {
@@ -466,17 +476,18 @@ class MoyDomPanel extends HTMLElement {
       const ids = this.favoriteIds(catalog);
       for (const id of ids) {
         const {room, name} = catalog.get(id);
-        favorites.append(this.lightView(id, room ? room + " · " + name : name, "", false));
+        favorites.append(this.lightView(id, name, room, false));
       }
       if (!ids.length) favorites.append(element("p", "muted", "Закрепите светильники для быстрого доступа."));
       side.append(favorites);
     }
     if (this.config.home_scenes?.length) {
-      const scenes = element("section", "room");
+      const scenes = element("section", "room scenes");
       scenes.append(element("h2", "", "Сценарии"));
       for (const [id, name] of this.config.home_scenes) {
         const row = button("", () => this.moreInfo(id), "detail-row");
-        row.append(pictogram("scene"), element("span", "scene-name", name), element("span", "chevron", "›"));
+        const icon = this.state(id)?.attributes?.icon;
+        row.append(pictogram(iconPaths[icon] ? icon : "scene"), element("span", "scene-name", name), element("span", "chevron", "›"));
         scenes.append(row);
         this.bindings.push(() => { row.disabled = !this.connected || !this.state(id) || this.state(id).state === "unavailable"; });
       }
@@ -678,7 +689,7 @@ class MoyDomPanel extends HTMLElement {
     this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
   }
 
-  lightView(id, name, roomName, showDimmer = true) {
+  lightView(id, name, roomName, inRoom = true) {
     const wrapper = element("div", "device");
     const row = element("div", "light-row");
     const label = element("div", "light-label");
@@ -694,7 +705,7 @@ class MoyDomPanel extends HTMLElement {
     custom.hidden = true;
     icon.append(fallback, custom);
     const details = button("", () => this.moreInfo(id), "device-details");
-    details.setAttribute("aria-label", name + " — подробности");
+    details.setAttribute("aria-label", [roomName, name, "подробности"].filter(Boolean).join(" — "));
     details.append(icon, element("span", "", name + " ›"), state);
     label.append(details, toggle);
     row.append(label);
@@ -738,10 +749,11 @@ class MoyDomPanel extends HTMLElement {
       icon.classList.toggle("lit", this.connected && on);
       toggle.checked = on;
       toggle.disabled = !this.connected || !available(entity) || pending;
-      setText(state, pending ? "Ожидание ответа" : !this.connected ? "Нет связи" : !available(entity) ? "Недоступно" : on ? "Включено" : "Выключено");
+      const status = pending ? "Ожидание ответа" : !this.connected ? "Нет связи" : !available(entity) ? "Недоступно" : on ? "Включено" : "Выключено";
+      setText(state, !inRoom && roomName ? roomName + " · " + status : status);
       const modes = entity?.attributes?.supported_color_modes;
       const dimmable = domainOf(id) === "light" && Array.isArray(modes) && modes.some(mode => ["brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"].includes(mode));
-      dimmer.hidden = !showDimmer || !dimmable || !on || !available(entity);
+      dimmer.hidden = !inRoom || !dimmable || !on || !available(entity);
       range.disabled = !this.connected || pending;
       if (this.shadowRoot.activeElement !== range || pending) {
         const brightness = numeric(entity?.attributes?.brightness);
@@ -1190,34 +1202,97 @@ dialog::backdrop {background:#0b111ab5}
 .favorite-option input {accent-color:var(--olive);width:20px;height:20px}
 dialog .primary {margin-top:14px}
 .home-grid .room,.room-console > .lighting,.room-console > .climate-card {background:var(--paper)}
-.home-grid .hero {border-radius:26px;padding:clamp(18px,3vw,30px);border:1px solid var(--edge);
-  background:linear-gradient(135deg,#1a2c46,#15202e 65%);box-shadow:0 12px 32px var(--shade)}
-.home-grid h1 {font-size:clamp(1.75rem,3vw,2.5rem)}
-.home-readings {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:20px 0 12px}
-.home-metric {display:grid;align-content:start;justify-items:start;gap:5px;text-align:left;min-width:0;padding:11px 12px;border:1px solid #adbfdc38;border-radius:14px;color:var(--hero-text);background:#ffffff09}
-.home-metric:hover,.status-item:is(button):hover {background:#ffffff15}
-.home-metric .metric-label {display:flex;align-items:center;gap:6px;font-size:.86rem}
-.metric-label .pictogram {width:17px;height:17px;color:#a9ceff}
-.home-metric small {font-size:.81rem;color:var(--hero-muted);line-height:1.35}
-.home-metric strong {font-size:clamp(1.5rem,4vw,2rem);font-weight:560;line-height:1.15;letter-spacing:-.035em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.home-metric.featured {grid-column:1/-1;background:transparent;border:0;border-bottom:1px solid #adbfdc38;border-radius:0;padding:0 0 15px;margin-bottom:4px}
-.home-metric.featured strong {font-size:clamp(2.25rem,8vw,3.25rem);font-weight:520;letter-spacing:-.05em}
-.home-metric:not(.featured):last-child:nth-child(4) {grid-column:1/-1}
-.home-grid .home-status {margin:12px 0 0}
-.home-grid .hero .weather {font-size:.82rem}
-.room-console .climate-card p + p {margin-top:6px}
-.issues {display:block;width:100%}
-@media(max-width:780px) {
-  .toolbar {min-height:56px;margin-bottom:4px}
-  .home-grid .hero {padding:17px}
-  .navigation button {font-size:.8rem}
-  .home-grid .room {padding:12px 16px}
+/* The summary reads as one instrument. The surrounding actions have their own surfaces. */
+.shell {
+  --summary-fill:rgb(255 255 255 / .8); --summary-rule:rgb(57 82 121 / .19);
+  --summary-ink:#16253e; --summary-note:#435671; --summary-blue:#255f9d;
+  background-image:radial-gradient(ellipse 84% 45% at 97% 0%,#bfd6f0 0%,transparent 83%),
+    linear-gradient(160deg,#e9eff8,var(--surface) 66%);
 }
-.home-status {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(125px,100%),1fr));gap:8px;margin:16px 0}
-.status-item {display:grid;grid-template-columns:22px 1fr;align-content:center;align-items:center;gap:4px 8px;text-align:left;padding:10px;
-  background:rgb(255 255 255 / .07);border:1px solid rgb(255 255 255 / .17);border-radius:14px;color:var(--hero-text)}
-.status-item svg {grid-row:span 2}.status-item span {font-size:.75rem;color:var(--hero-muted)}
-.status-item strong {font-size:.94rem}.scene-name {flex:1}
+.shell[data-theme=dark] {
+  --summary-fill:rgb(29 43 63 / .85); --summary-rule:rgb(207 224 248 / .17);
+  --summary-ink:#f2f6ff; --summary-note:#c0cde0; --summary-blue:#a6ccff;
+  background-image:radial-gradient(ellipse 84% 45% at 97% 0%,#263951 0%,transparent 83%),
+    linear-gradient(155deg,#121b2b,var(--surface) 67%);
+}
+.home-grid .hero {padding:0;border:0;border-radius:0;background:transparent;color:var(--ink)}
+.hero-row {align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.hero-row:first-child {align-items:baseline}
+.home-grid h1 {font-size:clamp(1.85rem,3vw,2.45rem);font-weight:630;letter-spacing:-.045em;line-height:1.12}
+.home-grid .weather {color:var(--summary-note);font-size:.86rem;margin:0}
+.home-readings {
+  display:grid;grid-auto-columns:minmax(0,1fr);grid-auto-flow:column;align-items:stretch;
+  margin-top:15px;padding:12px 5px;border:1px solid var(--summary-rule);border-radius:18px;
+  background:var(--summary-fill);color:var(--summary-ink);box-shadow:inset 0 1px 0 var(--shine);
+  container-type:inline-size;
+}
+.home-readings:empty {display:none}
+.home-readings:has(.featured):has(> :nth-child(3)) {grid-template-columns:minmax(0,1.35fr) minmax(0,1.16fr) minmax(0,.80fr)}
+.home-readings:has(> :nth-child(4)) {grid-auto-flow:row;row-gap:10px}
+.home-readings > :nth-child(4) {grid-column:1/-1}
+.home-metric {
+  display:grid;justify-items:start;align-content:start;min-width:0;gap:5px;min-height:48px;
+  padding:2px clamp(6px,2.5cqw,16px);border:0;text-align:left;background:transparent;
+}
+.home-metric + .home-metric {border-inline-start:1px solid var(--summary-rule)}
+.home-metric:nth-child(4) {grid-template-columns:auto 1fr;align-items:baseline;column-gap:12px;
+  border:0;border-top:1px solid var(--summary-rule);padding-top:10px}
+.home-metric:nth-child(4) small {grid-column:1/-1}
+.metric-label {display:flex;align-items:center;gap:4px;color:var(--summary-blue);font-size:.81rem;font-weight:550;line-height:1.2}
+.metric-label .pictogram {width:15px;height:15px}
+.home-metric strong {font-size:clamp(1.2rem,6.8cqw,1.75rem);font-variant-numeric:tabular-nums;
+  letter-spacing:-.047em;font-weight:570;line-height:1.2;overflow-wrap:anywhere}
+.home-metric strong.word-value {font-size:1rem;letter-spacing:0}
+.home-metric[data-kind=lights] {padding-inline-end:2px}
+.home-metric small {font-size:.77rem;line-height:1.3;color:var(--summary-note);overflow-wrap:anywhere}
+.home-status {display:flex;align-items:center;flex-wrap:wrap;gap:0 18px}
+.status-item {display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;
+  padding:0;min-height:44px;color:var(--summary-note);font-size:.84rem;text-align:left}
+.status-item .pictogram {height:16px;width:16px}
+.status-item strong {font-weight:500}.status-item .chevron {color:inherit;font-size:1rem}
+.status-item.alarm-active {color:var(--warn);font-weight:700}
+.issues {display:flex;align-items:center;gap:8px;width:100%;background:transparent;color:var(--summary-note);
+  border-top:1px solid var(--summary-rule);border-radius:0;font-weight:500;padding:0 4px;min-height:44px}
+.issues .pictogram {width:17px;height:17px;color:var(--warn)}
+.issues .chevron {margin-left:auto;color:var(--summary-note)}
+.home-grid > .stack:first-child {gap:0}
+.home-grid > .stack + .stack {gap:18px}
+.home-grid .room {border:1px solid var(--summary-rule);box-shadow:0 2px 10px var(--shade);border-radius:19px;padding:12px 18px}
+.home-grid .room h2 {font-size:1.12rem;font-weight:620;letter-spacing:-.025em}
+.home-grid .room > h2 {margin:5px 0 6px}
+.home-grid .room .device-details {font-weight:550}
+.home-grid .room .device-state {font-size:.8rem;font-weight:400}
+.home-grid .detail-row {border:0;min-height:50px;font-weight:500}
+.home-grid .detail-row + .detail-row {border-top:1px solid var(--line)}
+.home-grid .detail-row > .pictogram {color:var(--summary-blue);width:22px;height:22px}
+.home-grid .scene-name {flex:1}
+.home-grid .room.scenes {background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.home-grid .scenes > h2 {margin-bottom:6px}
+.home-grid .device-icon.lit .pictogram {fill:none}
+.home-grid .detail-row .chevron {color:var(--muted)}
+.room-console .climate-card p + p {margin-top:6px}
+@media(hover:hover) {
+  .home-metric:hover,.status-item:is(button):hover,.issues:hover {background:var(--accent);border-radius:8px}
+}
+@media(max-width:780px) {
+  .toolbar {min-height:52px;margin-bottom:12px}
+  .toolbar > strong {font-size:1rem}
+  .navigation button {font-size:.8rem}
+  .home-grid > .stack + .stack {gap:14px}
+  .home-grid .room {padding:10px 16px}
+}
+@media(max-width:355px) {
+  .home-readings:has(.featured):has(> :nth-child(3)) {grid-template-columns:minmax(0,1.26fr) minmax(0,1fr) minmax(4.8rem,.82fr)}
+}
+@container (max-width:300px) {
+  .metric-label .pictogram {display:none}
+  .home-metric {padding-inline:4px}
+  .home-metric small {font-size:.75rem}
+  .home-metric strong {font-size:1rem}
+}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  .shell,.shell[data-theme=dark] {--summary-fill:var(--paper);background:var(--surface)}
+}
 @media(prefers-reduced-motion:reduce) {.switch::before {transition:none}}
 `;
 
