@@ -279,7 +279,7 @@ class MoyDomPanel extends HTMLElement {
 
     if (this.room) {
       const title = element("div", "titlebar");
-      title.append(button("‹", () => this.select(this.zone, "rooms"), "back-button"), element("h1", "", this.room.name));
+      title.append(button("‹  " + this.zones[this.zone].name, () => this.select(this.zone, "rooms"), "back-button"), element("h1", "", this.room.name));
       title.firstChild.setAttribute("aria-label", "Назад к комнатам");
       this.content.append(title, this.roomView(this.room, false));
     } else if (this.section === "rooms") {
@@ -373,35 +373,50 @@ class MoyDomPanel extends HTMLElement {
   }
 
   roomView(room, showName = true) {
-    const section = element("section", "room");
+    const section = element("section", showName ? "room" : "room-console");
     if (showName) section.append(element("h2", "", room.name));
-    const readings = element("p", "muted");
+    const readings = element("p", "muted readings");
     section.append(readings);
     this.bindings.push(() => {
       const temperature = this.state(room.temperature);
       const humidity = this.state(room.humidity);
       const values = [
-        available(temperature) ? valueText(temperature.state, "°") : null,
+        available(temperature) && (showName || !room.climate || !available(this.state(room.climate)) || numeric(this.state(room.climate)?.attributes?.current_temperature) === null) ? valueText(temperature.state, "°") : null,
         available(humidity) ? "Влажность " + valueText(humidity.state, "%") : null,
       ].filter(Boolean);
       readings.hidden = !values.length;
       setText(readings, values.join(" · "));
     });
-    if (this.section !== "climate") {
-      for (const [id, name] of room.lights ?? []) section.append(this.lightView(id, name, room.name));
+    if (this.section !== "climate" && room.lights?.length) {
+      const lights = element("section", "lighting");
+      if (!showName) lights.append(element("h2", "", "Освещение"));
+      for (const [id, name] of room.lights) lights.append(this.lightView(id, name, room.name));
+      section.append(lights);
     }
     if (this.section !== "lights") {
       if (room.climate) {
-        const climate = element("div", "climate");
+        const climate = element("section", "climate-card");
+        const header = element("div", "climate-head");
+        const adjust = button("Настроить", () => this.openClimate(room), "climate-adjust");
+        adjust.setAttribute("aria-label", "Настроить климат");
+        header.append(element("h2", "", "Климат"), adjust);
+        const values = element("div", "climate-values");
+        const current = element("strong");
+        const target = element("strong");
+        for (const [caption, value] of [["Сейчас", current], ["Цель", target]]) {
+          const metric = element("div");
+          metric.append(element("span", "", caption), value);
+          values.append(metric);
+        }
         const status = element("p", "muted");
-        climate.append(element("h2", "", "Термостат"), status,
-          button("Настроить климат", () => this.openClimate(room), "primary"));
+        climate.append(header, values, status);
         this.bindings.push(() => {
           const entity = this.state(room.climate);
-          setText(status, available(entity) ?
-            "Сейчас " + valueText(entity.attributes.current_temperature, "°") +
-            " · задано " + valueText(entity.attributes.temperature, "°") + " · " +
-            ([modes[entity.state] || entity.state, actions[entity.attributes.hvac_action]].filter(Boolean).join(" · ")) : "Термостат недоступен");
+          const ready = available(entity) && this.connected;
+          setText(current, valueText(ready ? entity.attributes.current_temperature : null, "°"));
+          setText(target, valueText(ready ? entity.attributes.temperature : null, "°"));
+          setText(status, ready ? [modes[entity.state] || entity.state, actions[entity.attributes.hvac_action]]
+            .filter(Boolean).join(" · ") : "Термостат недоступен");
         });
         section.append(climate);
       }
@@ -882,6 +897,65 @@ dialog::backdrop {background:#0b111ab5}
   .hero {padding:15px 14px 8px}
   .hero-actions {margin-top:9px}
   .room {padding:12px 16px}
+}
+
+/* The wallpaper is drawn locally. More opaque cards remain legible without blur. */
+.shell {
+  --glass:rgb(247 251 255 / .72); --edge:rgb(255 255 255 / .83);
+  --shine:rgb(255 255 255 / .8); --shade:rgb(43 66 109 / .12);
+  --sky:#c6dbef; --ribbon:#93bcf2; --violet:#a8a6df; --mist:#eaf7ff;
+  --knob:#fff;
+  min-height:100dvh;
+  background-color:var(--sky);
+  background-image:
+    radial-gradient(ellipse 105% 58% at 108% -3%,transparent 44%,var(--mist) 50%,var(--ribbon) 55%,transparent 68%),
+    radial-gradient(ellipse 120% 85% at -29% 12%,transparent 45%,var(--violet) 64%,transparent 78%),
+    linear-gradient(148deg,var(--sky),var(--surface) 76%);
+  background-size:100% max(100dvh,650px);background-repeat:no-repeat;
+}
+.shell[data-theme=dark] {
+  --glass:rgb(18 30 49 / .75); --edge:rgb(202 225 255 / .21);
+  --shine:rgb(216 236 255 / .18); --shade:rgb(0 4 12 / .32);
+  --sky:#0e172b; --ribbon:#30558c; --violet:#3d3765; --mist:#819fbf;
+  --muted:#c1cee0; --olive:#a4c9ff;
+}
+.body {max-width:1060px}
+.toolbar {justify-content:space-between;border:0}
+.titlebar {display:grid;justify-items:start;gap:12px;margin:24px 0}
+.titlebar h1 {font-size:clamp(2.3rem,5vw,4rem);letter-spacing:-.055em}
+.back-button,.climate-adjust {width:auto;border-radius:100px;padding:0 15px;font-size:.88rem;font-weight:600}
+.room-console {display:grid;grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);align-items:start;gap:16px}
+.readings {grid-column:1/-1;margin:0 0 8px}
+.room-console > .detail-row {grid-column:1/-1}
+.room-console > .lighting,.room-console > .climate-card,.room,.navigation,.back-button,.climate-adjust,dialog {
+  background:var(--glass);border:1px solid var(--edge);box-shadow:inset 0 1px 0 var(--shine),0 8px 26px var(--shade);
+  -webkit-backdrop-filter:blur(22px) saturate(128%);backdrop-filter:blur(22px) saturate(128%);
+}
+.room-console > .lighting,.room-console > .climate-card {border-radius:24px;padding:20px}
+.navigation {border-radius:32px;padding:4px}
+.navigation button,.navigation button[aria-pressed=true] {border-radius:24px}
+.light-label {min-height:64px}
+.device-icon {border-radius:12px;background:var(--accent);width:36px;height:36px;color:var(--ink)}
+.device-icon.lit {background:var(--olive);color:var(--on)}
+.device-details {grid-template-columns:36px minmax(0,1fr)}
+.climate-values {display:flex;align-items:flex-end;gap:30px;margin:18px 0 12px}
+.climate-values span,.climate-values strong {display:block}
+.climate-values span {font-size:.78rem;color:var(--muted)}
+.climate-values strong {font-size:clamp(2rem,6vw,3.3rem);line-height:1.12;font-weight:550;letter-spacing:-.055em;font-variant-numeric:tabular-nums}
+.climate-values div+div strong {font-size:1.65rem}
+.climate-head h2,.climate-card p {margin:0}
+.climate-adjust {color:var(--olive);box-shadow:inset 0 1px 0 var(--shine)}
+.room > .climate-card {padding-top:14px}
+@media(max-width:780px) {
+  .room-console {grid-template-columns:minmax(0,1fr);gap:12px}
+  .navigation {inset:auto 12px max(10px,env(safe-area-inset-bottom));margin:auto;max-width:440px;padding:4px;z-index:3}
+  .navigation button[aria-pressed=true] {background:var(--accent)}
+  .body {padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+  .titlebar {margin:8px 0 16px;gap:10px}
+  .room-console > .lighting,.room-console > .climate-card {padding:16px}
+}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  .shell {--glass:var(--paper);background:var(--surface)}
 }
 @media(prefers-reduced-motion:reduce) {.switch::before {transition:none}}
 `;

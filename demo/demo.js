@@ -50,8 +50,9 @@ add("scene.evening", "Вечерний свет", "unknown", null);
 add("script.goodnight", "Спокойной ночи", "off", null);
 add("sun.sun", "Солнце", "above_horizon", null);
 
+const devices = {};
 function publish() {
-  card.hass = { states: { ...states }, areas, floors, entities, devices: {}, connected: true, callService };
+  card.hass = { states: { ...states }, areas, floors, entities, devices, connected: true, callService };
 }
 
 async function callService(domain, service, data, { entity_id }) {
