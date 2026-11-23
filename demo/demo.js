@@ -97,6 +97,8 @@ picker.addEventListener("change", () => {
 panel.shadowRoot.addEventListener("change", () => { picker.value = panel.theme; });
 panel.updateTheme();
 
+if (params.get("view") === "climate" && panel.room?.climate) panel.openClimate(panel.room);
+
 const details = document.getElementById("details");
 card.addEventListener("hass-more-info", event => {
   const state = states[event.detail.entityId];

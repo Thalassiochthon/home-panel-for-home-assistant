@@ -433,6 +433,7 @@ class MoyDomPanel extends HTMLElement {
     close.setAttribute("aria-label", "Закрыть");
     close.autofocus = true;
     header.append(label, close);
+    this.dialog.classList.toggle("thermostat-sheet", children[0]?.classList.contains("climate"));
     this.dialog.replaceChildren(header, ...children);
     this.dialog.showModal();
   }
@@ -445,7 +446,7 @@ class MoyDomPanel extends HTMLElement {
     this.dialog.addEventListener("close", () => {
       if (this.dialogUpdates === updates) this.dialogUpdates = null;
     }, { once:true });
-    this.showDialog(room.name, controls);
+    this.showDialog("Термостат", controls);
     this.refresh();
   }
 
@@ -559,7 +560,7 @@ class MoyDomPanel extends HTMLElement {
     const box = element("div", "climate");
     const head = element("div", "climate-head");
     const current = element("span", "muted");
-    head.append(element("span", "", "Термостат"), current);
+    head.append(element("span", "", room.name), current);
     const temperature = element("div", "temperature");
     const value = element("strong");
     const label = element("div", "target");
@@ -574,7 +575,10 @@ class MoyDomPanel extends HTMLElement {
     const status = element("p", "muted climate-status");
     const error = element("p", "error");
     error.setAttribute("role", "status");
-    const settings = button("Подробности", () => this.moreInfo(id), "quiet");
+    const settings = button("Карточка устройства ›", () => {
+      if (this.dialog.open) this.dialog.close();
+      this.moreInfo(id);
+    }, "quiet");
     box.append(head, temperature, mode.row, preset.row, status, error, settings);
 
     this.bindings.push(() => {
@@ -956,6 +960,33 @@ dialog::backdrop {background:#0b111ab5}
 }
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
   .shell {--glass:var(--paper);background:var(--surface)}
+}
+/* Detail sheets use a lighter scrim so the room remains visible around them. */
+.thermostat-sheet {--sheet-tint:color-mix(in srgb,var(--paper) 77%,transparent);
+  padding:20px 22px;border-radius:26px;overflow:auto;overscroll-behavior:contain;
+  background:var(--paper)}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+  .thermostat-sheet {background:linear-gradient(135deg,var(--shine),transparent 38%),var(--sheet-tint);
+    -webkit-backdrop-filter:blur(14px) saturate(145%);backdrop-filter:blur(14px) saturate(145%)}
+}
+.thermostat-sheet::backdrop {background:rgb(5 12 24 / .28)}
+.thermostat-sheet .climate {border:0;margin:0;padding:6px 0 0}
+.thermostat-sheet .climate-head {color:var(--muted);font-size:.9rem}
+.thermostat-sheet .dialog-head h2 {margin:0;font-size:1.5rem;letter-spacing:-.035em}
+.thermostat-sheet .temperature {padding:20px 0}
+.thermostat-sheet .target strong {font-size:2.85rem;font-variant-numeric:tabular-nums}
+.thermostat-sheet .select-row {border-top:1px solid var(--line);padding:4px 0}
+.thermostat-sheet .step,.thermostat-sheet select {background:var(--accent)}
+.thermostat-sheet .climate-status {font-size:.85rem}
+.thermostat-sheet .quiet:last-child {padding-inline:0}
+.switch {flex:none}
+.switch::after {content:"";position:absolute;inset:-8px 0}
+@media(max-width:780px) {
+  .thermostat-sheet {margin:auto auto max(8px,env(safe-area-inset-bottom));width:min(480px,calc(100% - 16px));
+    max-height:calc(100dvh - 24px);padding:18px 20px 12px}
+}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  .thermostat-sheet {background:var(--paper);backdrop-filter:none}
 }
 @media(prefers-reduced-motion:reduce) {.switch::before {transition:none}}
 `;
