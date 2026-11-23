@@ -102,14 +102,7 @@ const sections = [
 const modes = { off:"Выключен", heat:"Обогрев", cool:"Охлаждение", auto:"Авто", heat_cool:"Обогрев и охлаждение", fan_only:"Вентиляция", dry:"Осушение" };
 const actions = { heating:"Запрос обогрева", cooling:"Запрос охлаждения", idle:"Ожидание", off:"Выключен", fan:"Вентиляция", drying:"Осушение" };
 const presets = { none:"Обычный", sleep:"Сон", away:"Не дома", eco:"Эко", comfort:"Комфорт", home:"Дома", boost:"Быстрый нагрев", activity:"Активность" };
-const themes = [["auto", "Авто по солнцу"], ["light", "Светлая"], ["dark", "Тёмная"]];
-const palettes = {
-  cobalt:{ label:"Кобальт", swatch:"#367cff" },
-  pistachio:{ label:"Фисташковая", swatch:"#8da176" },
-  stone:{ label:"Песочная", swatch:"#b29974" },
-  slate:{ label:"Сланцевая", swatch:"#718da9" },
-  clay:{ label:"Терракотовая", swatch:"#ba7960" },
-};
+const themes = [["light", "Светлая"], ["dark", "Тёмная"]];
 const format = new Intl.NumberFormat("ru", { maximumFractionDigits: 1 });
 const available = entity => Boolean(entity && !["unknown", "unavailable"].includes(entity.state));
 const numeric = value => value != null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
@@ -159,14 +152,11 @@ class MoyDomPanel extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this.room = null;
-    this.palette = "cobalt";
     this.pending = new Map();
     this.failures = new Map();
     this.zone = 0;
     this.section = "rooms";
-    this.theme = "auto";
-    this.darkPreference = matchMedia("(prefers-color-scheme: dark)");
-    this.onSystemThemeChange = () => this.updateTheme();
+    this.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     this.bindings = [];
     this.zones = [];
     this.config = {};
@@ -175,8 +165,6 @@ class MoyDomPanel extends HTMLElement {
     this.entityIds = new Set();
     try {
       const saved = JSON.parse(localStorage.getItem("moy-dom-view") || "{}");
-      const palette = localStorage.getItem("moy-dom-palette");
-      if (Object.hasOwn(palettes, palette)) this.palette = palette;
       if (Number.isInteger(saved.zone) && saved.zone >= 0) this.zone = saved.zone;
       if (sections.some(([id]) => id === saved.section)) this.section = saved.section;
       const theme = localStorage.getItem("moy-dom-theme");
@@ -185,7 +173,6 @@ class MoyDomPanel extends HTMLElement {
   }
 
   connectedCallback() {
-    this.darkPreference.addEventListener("change", this.onSystemThemeChange);
     if (this.shell) return;
     const style = element("style", "", styles);
     this.shell = element("div", "shell");
@@ -217,7 +204,6 @@ class MoyDomPanel extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this.darkPreference.removeEventListener("change", this.onSystemThemeChange);
     for (const command of this.pending.values()) clearTimeout(command.timer);
     this.pending.clear();
   }
@@ -640,9 +626,8 @@ class MoyDomPanel extends HTMLElement {
     const appearance = element("section", "room appearance");
     const title = element("h2", "room-name", "Внешний вид");
     appearance.append(title,
-      this.appearancePicker("palette", "Цветовая палитра", Object.entries(palettes)),
       this.appearancePicker("theme", "Режим", themes),
-      element("p", "muted", "Авто переключает тему по восходу и закату. Выбор сохраняется в этом браузере."));
+      element("p", "muted", "Выбор сохраняется в этом браузере."));
     this.content.append(appearance);
 
     const list = element("section", "room links");
@@ -706,12 +691,7 @@ class MoyDomPanel extends HTMLElement {
         try { localStorage.setItem("moy-dom-" + key, id); } catch { /* Optional preference. */ }
         this.updateTheme();
       });
-      const text = element("span", "", item.label || item);
-      if (item.swatch) {
-        const swatch = element("i", "swatch");
-        swatch.style.setProperty("--swatch", item.swatch);
-        text.prepend(swatch);
-      }
+      const text = element("span", "", item);
       label.append(input, text);
       choices.append(label);
     }
@@ -727,10 +707,7 @@ class MoyDomPanel extends HTMLElement {
 
   updateTheme() {
     if (!this.shell) return;
-    const sun = this.state("sun.sun")?.state;
-    const night = sun === "below_horizon" || (sun !== "above_horizon" && this.darkPreference.matches);
-    this.shell.dataset.palette = this.palette;
-    this.shell.dataset.theme = this.theme === "auto" ? (night ? "dark" : "light") : this.theme;
+    this.shell.dataset.theme = this.theme;
   }
 
   async send(id, domain, service, data, confirmed) {
@@ -786,56 +763,21 @@ class MoyDomPanel extends HTMLElement {
 }
 
 const styles = `
-:host {display:block;height:100%;font:16px Inter,system-ui,sans-serif}
+:host {display:block;height:100%;font:16px -apple-system,BlinkMacSystemFont,system-ui,sans-serif}
 * {box-sizing:border-box}
 [hidden] {display:none!important}
 .shell {
-  color-scheme: light;
-  --surface:#eeefe6; --paper:#f9f9f2; --line:#d7dacb; --ink:#262e23; --muted:#5b6557;
-  --olive:#32442e; --on:#eff5e6; --accent:#e1e8d5; --warn:#785022; --warn-bg:#f2e8d7;
-  --hero:#303e2a; --hero-text:#f3f6ea; --hero-muted:#c9d5be;
-}
-.shell[data-theme=dark] {
-  color-scheme:dark;
-  --surface:#181e18; --paper:#222a22; --line:#394638; --ink:#eff2e7; --muted:#b1beac;
-  --olive:#c8dfad; --on:#24311e; --accent:#34432f; --warn:#f0c48b; --warn-bg:#392e22;
-  --hero:#2c3928; --hero-text:#f3f6ea; --hero-muted:#c9d5be;
-}
-.shell[data-palette=cobalt] {
+  color-scheme:light;
   --surface:#edf1f6; --paper:#ffffff; --line:#cbd3df; --ink:#111925; --muted:#4d6075;
   --olive:#1857ca; --on:#ffffff; --accent:#dfebff; --warn:#884309; --warn-bg:#fff0dc;
   --hero:#182333; --hero-text:#f6f9ff; --hero-muted:#bdcce1;
 }
-.shell[data-palette=cobalt][data-theme=dark] {
+.shell[data-theme=dark] {
+  color-scheme:dark;
   --surface:#0c1016; --paper:#171c24; --line:#353e4c; --ink:#f2f6fd; --muted:#aab7c9;
   --olive:#79acff; --on:#08172e; --accent:#1d3353; --warn:#ffc17d; --warn-bg:#38291b;
   --hero:#1b2533; --hero-text:#f2f6fd; --hero-muted:#afbed4;
 }
-.shell[data-palette=stone] {
-  --surface:#eeece6; --paper:#faf8f3; --line:#d9d4ca; --ink:#2d2b26; --muted:#655f53;
-  --olive:#544b3b; --on:#fff8ec; --accent:#e9e1d2; --hero:#4a4135; --hero-text:#fff8ec; --hero-muted:#e4d7c4;
-}
-.shell[data-palette=stone][data-theme=dark] {
-  --surface:#201e1b; --paper:#2b2823; --line:#49433a; --ink:#f3eee3; --muted:#c9c0b1;
-  --olive:#e4cba5; --on:#30271d; --accent:#453b2e; --hero:#43392d; --hero-text:#fff8ec; --hero-muted:#e4d7c4;
-}
-.shell[data-palette=slate] {
-  --surface:#e9edf0; --paper:#f6f9fb; --line:#cfd8df; --ink:#252f39; --muted:#536373;
-  --olive:#344d64; --on:#f0f7ff; --accent:#dce7ef; --hero:#2f4458; --hero-text:#f0f7ff; --hero-muted:#c9d9e7;
-}
-.shell[data-palette=slate][data-theme=dark] {
-  --surface:#191e24; --paper:#232b34; --line:#3d4c5b; --ink:#ecf2f8; --muted:#b7c7d7;
-  --olive:#b4d4ef; --on:#233549; --accent:#334557; --hero:#2d4051; --hero-text:#f0f7ff; --hero-muted:#c9d9e7;
-}
-.shell[data-palette=clay] {
-  --surface:#f0eae6; --paper:#fcf7f3; --line:#e0d1c9; --ink:#382a25; --muted:#705b53;
-  --olive:#784733; --on:#fff4ee; --accent:#f0ddd2; --hero:#663e30; --hero-text:#fff4ee; --hero-muted:#f1d2c2;
-}
-.shell[data-palette=clay][data-theme=dark] {
-  --surface:#241c19; --paper:#322521; --line:#524039; --ink:#f6ebe4; --muted:#d3bcb0;
-  --olive:#efb59b; --on:#40271e; --accent:#51372e; --hero:#4c332a; --hero-text:#fff4ee; --hero-muted:#f1d2c2;
-}
-
 .shell {min-height:100%;background:var(--surface);color:var(--ink);--warning:var(--warn);--track:var(--line);--active:var(--olive);--knob:var(--paper)}
 button,input,select {font:inherit;color:inherit}
 button,a,input,select {touch-action:manipulation}
@@ -845,7 +787,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible {o
 .body {max-width:1240px;margin:auto;padding:0 24px 40px;min-width:0}
 .toolbar {display:flex;align-items:center;gap:24px;min-height:64px;border-bottom:1px solid var(--line);margin-bottom:20px}
 .toolbar strong {font-size:1.12rem;white-space:nowrap}
-h1 {font-size:clamp(1.8rem,4.5vw,3.25rem);line-height:1.06;letter-spacing:-.055em;margin:0;font-weight:650}
+h1 {font-size:clamp(1.8rem,4.5vw,3.25rem);line-height:1.06;letter-spacing:-.038em;margin:0;font-weight:650}
 .page-title,.titlebar {margin-bottom:16px}
 .titlebar {display:flex;align-items:center;gap:12px}
 .back-button {width:44px;flex:none;font-size:1.35rem;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
@@ -866,9 +808,9 @@ h1 {font-size:clamp(1.8rem,4.5vw,3.25rem);line-height:1.06;letter-spacing:-.055e
 .floors button[aria-pressed=true] {background:var(--paper);color:var(--olive);box-shadow:0 1px 5px #2029150d;font-weight:650}
 .quiet {background:transparent;border:0;padding:5px 8px;color:var(--olive);font-size:.85rem;font-weight:600}
 .primary {border:0;border-radius:12px;padding:0 14px;background:var(--olive);color:var(--on);font-weight:650}
-.room {min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:13px 16px}
+.room {min-width:0;background:var(--paper);border:0;border-radius:17px;padding:16px 20px}
 h2 {margin:0 0 7px;font-size:1.2rem;letter-spacing:-.035em}
-.room-reading {margin-left:auto;font-size:1.35rem;letter-spacing:-.055em;white-space:nowrap}
+.room-reading {margin-left:auto;font-size:1.35rem;letter-spacing:-.038em;white-space:nowrap}
 .device + .device,.room-head + .room-head {border-top:1px solid var(--line)}
 .room-head {border:0;background:transparent;width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;padding:18px 0}
 .room-name {font-size:1.12rem;font-weight:650;letter-spacing:-.02em;overflow-wrap:anywhere}
@@ -881,7 +823,7 @@ h2 {margin:0 0 7px;font-size:1.2rem;letter-spacing:-.035em}
 .device-icon.lit .pictogram {fill:currentColor}
 .device-icon [hidden] {display:none}
 .light-label {display:flex;align-items:center;gap:12px}
-.device-details {flex:1;min-width:0;color:inherit;font:inherit;text-align:left;background:transparent;border:0;display:grid;grid-template-columns:26px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;gap:3px 12px;min-height:58px;padding:7px 0;overflow-wrap:anywhere}
+.device-details {flex:1;min-width:0;color:inherit;font:inherit;text-align:left;background:transparent;border:0;display:grid;grid-template-columns:26px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;gap:3px 12px;min-height:60px;padding:9px 0;overflow-wrap:anywhere}
 .device-state {grid-row:2;grid-column:2;font-size:.73rem;color:var(--muted)}
 .switch {grid-row:1/3;grid-column:3;appearance:none;width:46px;height:28px;background:var(--track);border:0;border-radius:16px;position:relative;margin:0;cursor:pointer}
 .switch::before {content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--knob);box-shadow:0 1px 3px #0002;transition:transform .15s}
@@ -911,14 +853,13 @@ select {max-width:65%;min-height:44px;border:1px solid var(--line);border-radius
 .navigation button {display:flex;align-items:center;justify-content:center;gap:6px;border:0;background:transparent;border-radius:10px;color:var(--muted);font-size:.86rem;padding:5px 12px}
 .navigation button[aria-pressed=true] {color:var(--ink);background:var(--accent);font-weight:700}
 dialog {width:min(460px,calc(100% - 24px));max-height:85dvh;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--paper);color:var(--ink)}
-dialog::backdrop {background:#10170db5}
+dialog::backdrop {background:#0b111ab5}
 .dialog-head {display:flex;justify-content:space-between;align-items:center;gap:10px}
 .dialog-head button {font-size:1.4rem;min-width:44px}
 .sr-only {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .appearance-group { margin:14px 0 0; padding:0; border:0; min-width:0; }
 .appearance-group legend { margin-bottom:8px; padding:0; font-weight:650; }
-.choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
-.palette-choices { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
 .choice { position:relative; min-width:0; }
 .choice input { position:absolute; opacity:0; width:1px; height:1px; }
 .choice span { min-height:44px; display:flex; align-items:center; justify-content:center; gap:8px;
@@ -927,20 +868,20 @@ dialog::backdrop {background:#10170db5}
 .choice input:focus-visible + span { outline:2px solid var(--olive); outline-offset:2px; }
 .entity-search { width:100%; min-height:44px; padding:8px 12px; font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; }
 .entity-search:focus-visible { outline:2px solid var(--olive); outline-offset:2px; }
-.swatch { flex:none; width:13px; height:13px; border-radius:50%; background:var(--swatch); }
 .appearance-note { margin-top:9px; }
 
-.choices.palette {grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:780px) {
-  .body {padding:0 12px calc(74px + env(safe-area-inset-bottom))}
+  .body {padding:0 16px calc(74px + env(safe-area-inset-bottom))}
   .toolbar {min-height:46px;margin-bottom:12px}
   .navigation {position:fixed;inset:auto 0 0;z-index:2;padding:5px 8px calc(5px + env(safe-area-inset-bottom));background:var(--paper);border-top:1px solid var(--line)}
-  .navigation button {flex:1;flex-direction:column;gap:2px;padding:4px}
+  .navigation button[aria-pressed=true] {background:transparent;color:var(--olive)}
+  .navigation {background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(16px)}
+  .navigation button {font-size:.72rem;flex:1;flex-direction:column;gap:2px;padding:4px}
   .overview-grid,.overview-grid:has(> .stack) {grid-template-columns:minmax(0,1fr);gap:12px}
   .stack {gap:12px}
   .hero {padding:15px 14px 8px}
   .hero-actions {margin-top:9px}
-  .room {padding:10px 12px}
+  .room {padding:12px 16px}
 }
 @media(prefers-reduced-motion:reduce) {.switch::before {transition:none}}
 `;

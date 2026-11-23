@@ -82,18 +82,18 @@ if (params.get("room") === "bedroom") {
   panel.section = "rooms";
   panel.renderSection();
 }
-for (const key of ["palette", "theme"]) {
-  const picker = document.getElementById(key);
-  const requested = params.get(key);
-  if (Array.from(picker.options).some(option => option.value === requested)) panel[key] = requested;
-  picker.value = panel[key];
-  picker.addEventListener("change", () => {
-    panel[key] = picker.value;
-    panel.updateTheme();
-    panel.shadowRoot.querySelector(`input[name="${key}"][value="${picker.value}"]`)?.click();
-  });
-  panel.shadowRoot.addEventListener("change", () => { picker.value = panel[key]; });
-}
+const picker = document.getElementById("theme");
+const requested = params.get("theme");
+if (requested === "dark" || requested === "light") panel.theme = requested;
+picker.value = panel.theme;
+picker.addEventListener("change", () => {
+  panel.theme = picker.value;
+  try { localStorage.setItem("moy-dom-theme", picker.value); } catch { /* Optional preference. */ }
+  const option = panel.shadowRoot.querySelector('input[name="theme"][value="' + picker.value + '"]');
+  if (option) option.checked = true;
+  panel.updateTheme();
+});
+panel.shadowRoot.addEventListener("change", () => { picker.value = panel.theme; });
 panel.updateTheme();
 
 const details = document.getElementById("details");
