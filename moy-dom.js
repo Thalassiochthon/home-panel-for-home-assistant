@@ -69,6 +69,9 @@ function validate(config) {
   };
   ensure(config && typeof config === "object" && !Array.isArray(config), "конфигурацию карточки");
   pairs(config.quick_lights, "quick_lights", (id, name) => entity(id, lightDomains) && label(name));
+  if (config.presence !== undefined) ensure(entity(config.presence, ["binary_sensor"]), "presence");
+  if (config.alarm !== undefined) ensure(entity(config.alarm, ["alarm_control_panel"]), "alarm");
+  pairs(config.home_scenes, "home_scenes", (id, name) => entity(id, ["scene"]) && label(name));
   pairs(config.alerts, "alerts", (id, name) => entity(id, ["binary_sensor"]) && label(name));
   pairs(config.more, "more", (name, target) => label(name) && (entity(target) ||
     (typeof target === "string" && /^\/[a-z0-9_/-]+(?:[?#][^\\\s]*)?$/i.test(target) && !target.startsWith("//"))));
@@ -121,6 +124,9 @@ const iconPaths = {
   "mdi:ceiling-light": "M12 2v6m-9 9a9 9 0 0 1 18 0z M10 20h4",
   "mdi:track-light": "M2 5h20 M5 5v4l-3 5 4 2 3-5-4-2 M15 5v4l2 6 4-2-2-6z",
   "mdi:lamp": "M7 4h10l3 10H4z M12 14v6m-5 1h10",
+  presence: "M2 11l10-8 10 8 M5 10v11h14V10 M9 21v-6h6v6",
+  shield: "M12 2l8 3v6c0 5-4 9-8 11-4-2-8-6-8-11V5z",
+  scene: "M7 4l13 8-13 8z",
   rooms: "M3 3h18v18H3z M3 12h7m0-9v9m5 3v6m0-9h6",
   lights: "M8.5 15c0-2-3-3.3-3-7a6.5 6.5 0 0 1 13 0c0 3.7-3 5-3 7z M9 18h6m-5 3h4",
   climate: "M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0z M12 8v9",
@@ -366,7 +372,47 @@ class MoyDomPanel extends HTMLElement {
       failures.hidden = !failed.length;
       setText(failures, failed.map(({name,id}) => name + ": " + this.failures.get(id)).join(" · "));
     });
-    left.append(hero, quick);
+    const presence = this.config.presence;
+    const alarm = this.config.alarm ?? this.extra.find(([, id]) => id.startsWith("alarm_control_panel."))?.[1];
+    const statuses = element("div", "home-status");
+    if (presence) {
+      const value = element("strong");
+      const item = element("div", "status-item");
+      item.append(pictogram("presence"), element("span", "", "Присутствие"), value);
+      statuses.append(item);
+      this.bindings.push(() => {
+        const state = this.connected && this.state(presence)?.state;
+        setText(value, state === "on" ? "Кто-то дома" : state === "off" ? "Никого дома" : "Нет данных");
+      });
+    }
+    if (alarm) {
+      const item = button("", () => this.moreInfo(alarm), "status-item");
+      const value = element("strong");
+      item.append(pictogram("shield"), element("span", "", "Охрана ›"), value);
+      statuses.append(item);
+      const labels = { disarmed:"Снята", armed_away:"Под охраной", armed_home:"Охрана дома",
+        armed_night:"Ночная охрана", armed_vacation:"В отпуске", armed_custom_bypass:"Частичная охрана",
+        arming:"Постановка", disarming:"Снятие", pending:"Задержка входа", triggered:"Тревога" };
+      this.bindings.push(() => {
+        const entity = this.state(alarm);
+        setText(value, this.connected && available(entity) ? labels[entity.state] || entity.state : "Нет данных");
+        item.disabled = !this.connected || !entity;
+      });
+    }
+    if (statuses.childElementCount) header.after(statuses);
+    left.append(hero);
+    if (this.config.home_scenes?.length) {
+      const scenes = element("section", "room");
+      scenes.append(element("h2", "", "Сценарии"));
+      for (const [id, name] of this.config.home_scenes) {
+        const row = button("", () => this.moreInfo(id), "detail-row");
+        row.append(pictogram("scene"), element("span", "scene-name", name), element("span", "chevron", "›"));
+        scenes.append(row);
+        this.bindings.push(() => { row.disabled = !this.connected || !this.state(id) || this.state(id).state === "unavailable"; });
+      }
+      left.append(scenes);
+    }
+    left.append(quick);
     right.append(this.floors, issues, failures, list);
     grid.append(left, right);
     this.content.append(grid);
@@ -988,6 +1034,11 @@ dialog::backdrop {background:#0b111ab5}
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
   .thermostat-sheet {background:var(--paper);backdrop-filter:none}
 }
+.home-status {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(125px,100%),1fr));gap:8px;margin:16px 0}
+.status-item {display:grid;grid-template-columns:22px 1fr;align-content:center;align-items:center;gap:4px 8px;text-align:left;padding:10px;
+  background:rgb(255 255 255 / .07);border:1px solid rgb(255 255 255 / .17);border-radius:14px;color:var(--hero-text)}
+.status-item svg {grid-row:span 2}.status-item span {font-size:.75rem;color:var(--hero-muted)}
+.status-item strong {font-size:.94rem}.scene-name {flex:1}
 @media(prefers-reduced-motion:reduce) {.switch::before {transition:none}}
 `;
 

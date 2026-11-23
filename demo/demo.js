@@ -46,6 +46,9 @@ add("media_player.tv", "Телевизор", "off", null);
 add("switch.desk_outlet", "Розетка у стола", "off", "living");
 add("button.restart_sensor", "Перезапустить датчик", "unknown", "hall");
 add("cover.bedroom_blinds", "Шторы спальни", "closed", "bedroom");
+add("binary_sensor.occupied", "Присутствие", "on", null);
+add("scene.night", "Спокойной ночи", "unknown", null);
+add("scene.arrival", "Вернулись домой", "unknown", null);
 add("scene.evening", "Вечерний свет", "unknown", null);
 add("script.goodnight", "Спокойной ночи", "off", null);
 add("sun.sun", "Солнце", "above_horizon", null);
@@ -73,10 +76,14 @@ async function callService(domain, service, data, { entity_id }) {
   publish();
 }
 
-card.setConfig({ outdoor_temperature: "sensor.outdoor_temperature" });
+card.setConfig({
+  outdoor_temperature: "sensor.outdoor_temperature", presence: "binary_sensor.occupied", alarm: "alarm_control_panel.home",
+  home_scenes: [["scene.night", "Спокойной ночи"], ["scene.arrival", "Вернулись домой"]],
+});
 publish();
 const params = new URLSearchParams(location.search);
 const panel = card.querySelector("moy-dom-panel");
+if (params.get("view") === "home") panel.select(0, "rooms");
 if (params.get("room") === "bedroom") {
   panel.zone = panel.zones.findIndex(zone => zone.rooms.some(room => room.id === "area:bedroom"));
   panel.room = panel.zones[panel.zone].rooms.find(room => room.id === "area:bedroom");
@@ -100,10 +107,37 @@ panel.updateTheme();
 if (params.get("view") === "climate" && panel.room?.climate) panel.openClimate(panel.room);
 
 const details = document.getElementById("details");
+const plans = {
+  "scene.night": { description: "Основной свет в гостиной и спальне погаснет, ночник включится. Термостат спальни перейдёт в режим «Сон».",
+    lights: { "light.living_main":"off", "light.pendant":"off", "light.bedside":"on" }, preset:"sleep" },
+  "scene.arrival": { description: "Включится потолочный свет в гостиной. Термостат спальни вернётся в обычный режим. Охрана управляется отдельно.",
+    lights: { "light.living_main":"on" }, preset:"none" },
+};
+const run = document.createElement("button");
+run.type = "button";
+run.textContent = "Попробовать в демо";
+details.querySelector("form").prepend(run);
 card.addEventListener("hass-more-info", event => {
   const state = states[event.detail.entityId];
   if (!state) return;
   details.querySelector("h2").textContent = state.attributes.friendly_name;
   details.querySelector("p").textContent = "Состояние в демо: " + state.state;
+  const plan = plans[event.detail.entityId];
+  run.hidden = !plan;
+  run.onclick = null;
+  if (plan) {
+    details.querySelector("p").textContent = "Концепт сценария. " + plan.description;
+    run.onclick = () => {
+      for (const [id, value] of Object.entries(plan.lights)) states[id] = { ...states[id], state:value };
+      const thermostat = states["climate.bedroom"];
+      states["climate.bedroom"] = { ...thermostat, attributes:{ ...thermostat.attributes, preset_mode:plan.preset } };
+      publish();
+      details.querySelector("p").textContent = "Сценарий выполнен в демо.";
+      run.hidden = true;
+      details.querySelector('button:not([hidden])').focus();
+    };
+  } else if (state.entity_id === "alarm_control_panel.home") {
+    details.querySelector("p").textContent = "Охрана снята. Это демонстрация статуса Alarmo.";
+  }
   details.showModal();
 });
