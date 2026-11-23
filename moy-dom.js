@@ -104,6 +104,7 @@ const actions = { heating:"Запрос обогрева", cooling:"Запрос
 const presets = { none:"Обычный", sleep:"Сон", away:"Не дома", eco:"Эко", comfort:"Комфорт", home:"Дома", boost:"Быстрый нагрев", activity:"Активность" };
 const themes = [["auto", "Авто по солнцу"], ["light", "Светлая"], ["dark", "Тёмная"]];
 const palettes = {
+  cobalt:{ label:"Кобальт", swatch:"#367cff" },
   pistachio:{ label:"Фисташковая", swatch:"#8da176" },
   stone:{ label:"Песочная", swatch:"#b29974" },
   slate:{ label:"Сланцевая", swatch:"#718da9" },
@@ -158,7 +159,7 @@ class MoyDomPanel extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this.room = null;
-    this.palette = "pistachio";
+    this.palette = "cobalt";
     this.pending = new Map();
     this.failures = new Map();
     this.zone = 0;
@@ -799,6 +800,16 @@ const styles = `
   --surface:#181e18; --paper:#222a22; --line:#394638; --ink:#eff2e7; --muted:#b1beac;
   --olive:#c8dfad; --on:#24311e; --accent:#34432f; --warn:#f0c48b; --warn-bg:#392e22;
   --hero:#2c3928; --hero-text:#f3f6ea; --hero-muted:#c9d5be;
+}
+.shell[data-palette=cobalt] {
+  --surface:#edf1f6; --paper:#ffffff; --line:#cbd3df; --ink:#111925; --muted:#4d6075;
+  --olive:#1857ca; --on:#ffffff; --accent:#dfebff; --warn:#884309; --warn-bg:#fff0dc;
+  --hero:#182333; --hero-text:#f6f9ff; --hero-muted:#bdcce1;
+}
+.shell[data-palette=cobalt][data-theme=dark] {
+  --surface:#0c1016; --paper:#171c24; --line:#353e4c; --ink:#f2f6fd; --muted:#aab7c9;
+  --olive:#79acff; --on:#08172e; --accent:#1d3353; --warn:#ffc17d; --warn-bg:#38291b;
+  --hero:#1b2533; --hero-text:#f2f6fd; --hero-muted:#afbed4;
 }
 .shell[data-palette=stone] {
   --surface:#eeece6; --paper:#faf8f3; --line:#d9d4ca; --ink:#2d2b26; --muted:#655f53;

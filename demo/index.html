@@ -6,14 +6,14 @@
   <title>Home Panel — интерактивное демо</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; background: #e7e8de; color: #2b3328; font: 15px system-ui, sans-serif; }
+    body { margin: 0; background: #161c24; color: #edf1f8; font: 15px system-ui, sans-serif; }
     .demo-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
-      padding: 12px clamp(12px, 4vw, 32px); background: #18211b; color: #f6f7f0; }
-    .demo-bar small { display: block; color: #c0c9bf; margin-top: 3px; }
+      padding: 12px clamp(12px, 4vw, 32px); background: #10151d; color: #f2f6fd; }
+    .demo-bar small { display: block; color: #abb9ca; margin-top: 3px; }
     .controls { display: flex; flex-wrap: wrap; gap: 8px; }
     select, button { font: inherit; }
-    select { min-height: 44px; border: 1px solid #667969; border-radius: 8px; padding: 4px 10px;
-      background: #293a30; color: white; }
+    select { min-height: 44px; border: 1px solid #566477; border-radius: 8px; padding: 4px 10px;
+      background: #222c39; color: white; }
     moy-dom-dashboard, moy-dom-panel { display: block; min-height: calc(100dvh - 68px); }
     dialog { max-width: calc(100% - 24px); border: 0; border-radius: 12px; padding: 20px; }
     dialog::backdrop { background: #0008; }
@@ -24,6 +24,7 @@
     <div><strong>Интерактивное демо</strong><small>Вымышленные устройства · команды меняют только демо</small></div>
     <div class="controls">
       <select id="palette" aria-label="Цветовая палитра">
+        <option value="cobalt">Кобальт</option>
         <option value="pistachio">Фисташковая</option>
         <option value="stone">Песочная</option>
         <option value="slate">Сланцевая</option>
