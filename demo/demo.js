@@ -26,10 +26,11 @@ add("light.pendant", "Подвес", "off", "bedroom", { icon: "mdi:ceiling-ligh
 add("light.spots", "Точечный свет", "off", "bedroom", { icon: "mdi:track-light" });
 add("light.bedside", "Ночник", "on", "bedroom", { icon: "mdi:lamp" });
 add("light.yard", "Садовые фонари", "off", "yard");
-add("sensor.living_temperature", "Температура гостиной", "22.8", "living", { device_class: "temperature" });
-add("sensor.kitchen_temperature", "Температура кухни", "23.4", "kitchen", { device_class: "temperature" });
-add("sensor.living_humidity", "Влажность гостиной", "52", "living", { device_class: "humidity" });
-add("sensor.bedroom_temperature", "Температура спальни", "21.6", "bedroom", { device_class: "temperature" });
+add("sensor.living_temperature", "Температура гостиной", "22.8", "living", { device_class: "temperature", unit_of_measurement: "°C" });
+add("sensor.kitchen_temperature", "Температура кухни", "23.4", "kitchen", { device_class: "temperature", unit_of_measurement: "°C" });
+add("sensor.living_humidity", "Влажность гостиной", "52", "living", { device_class: "humidity", unit_of_measurement: "%" });
+add("sensor.bedroom_temperature", "Температура спальни", "21.6", "bedroom", { device_class: "temperature", unit_of_measurement: "°C" });
+add("sensor.bedroom_humidity", "Влажность спальни", "46", "bedroom", { device_class: "humidity", unit_of_measurement: "%" });
 add("sensor.outdoor_temperature", "Температура на улице", "14", null);
 add("climate.living", "Термостат гостиной", "heat", "living", {
   current_temperature: 22.8, temperature: 23, min_temp: 16, max_temp: 30,
@@ -76,12 +77,16 @@ async function callService(domain, service, data, { entity_id }) {
   publish();
 }
 
+const params = new URLSearchParams(location.search);
+const previewPower = params.get("meter") === "heater";
+if (previewPower) add("sensor.heater_power", "Розетка конвектора", "840", null, { device_class:"power", unit_of_measurement:"W" });
 card.setConfig({
+  summary_rooms: ["area:living", "area:bedroom"],
+  ...(previewPower ? { power_meter: "sensor.heater_power" } : {}),
   outdoor_temperature: "sensor.outdoor_temperature", presence: "binary_sensor.occupied", alarm: "alarm_control_panel.home",
   home_scenes: [["scene.night", "Спокойной ночи"], ["scene.arrival", "Вернулись домой"]],
 });
 publish();
-const params = new URLSearchParams(location.search);
 const panel = card.querySelector("moy-dom-panel");
 if (params.get("view") === "home") panel.select(0, "rooms");
 if (params.get("room") === "bedroom") {

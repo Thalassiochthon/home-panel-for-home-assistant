@@ -71,6 +71,8 @@ function validate(config) {
   pairs(config.quick_lights, "quick_lights", (id, name) => entity(id, lightDomains) && label(name));
   if (config.presence !== undefined) ensure(entity(config.presence, ["binary_sensor"]), "presence");
   if (config.alarm !== undefined) ensure(entity(config.alarm, ["alarm_control_panel"]), "alarm");
+  if (config.summary_rooms !== undefined) ensure(Array.isArray(config.summary_rooms) && config.summary_rooms.every(label), "summary_rooms");
+  if (config.power_meter !== undefined) ensure(entity(config.power_meter, ["sensor"]), "power_meter");
   pairs(config.home_scenes, "home_scenes", (id, name) => entity(id, ["scene"]) && label(name));
   pairs(config.alerts, "alerts", (id, name) => entity(id, ["binary_sensor"]) && label(name));
   pairs(config.more, "more", (name, target) => label(name) && (entity(target) ||
@@ -307,6 +309,64 @@ class MoyDomPanel extends HTMLElement {
     this.refresh();
   }
 
+  homeReadings() {
+    const strip = element("div", "home-readings");
+    const rooms = this.zones.flatMap(zone => zone.rooms);
+    const selected = rooms.filter(room => this.config.summary_rooms?.includes(room.id));
+    const lights = new Set(rooms.flatMap(room => (room.lights ?? []).map(([id]) => id)));
+    const metric = (name, read) => {
+      const cell = element("div", "home-metric");
+      const value = element("strong");
+      const note = element("small");
+      cell.append(element("span", "", name), value, note);
+      strip.append(cell);
+      this.bindings.push(() => {
+        const [reading, caption] = this.connected ? read() : ["—", "Нет связи"];
+        setText(value, reading);
+        setText(note, caption);
+      });
+    };
+    for (const [key, name, suffix] of [["temperature", "Температура", " °C"], ["humidity", "Влажность", " %"]]) {
+      const sources = new Map(selected.filter(room => room[key] && room[key] !== this.config.outdoor_temperature)
+        .map(room => [room[key], room.name]));
+      if (!sources.size) continue;
+      metric(name, () => {
+        const readings = [];
+        for (const [id, room] of sources) {
+          const entity = this.state(id);
+          const value = numeric(entity?.state);
+          if (!available(entity) || value === null) continue;
+          const unit = entity.attributes?.unit_of_measurement;
+          if (key === "temperature" && (unit === "°C" || unit === "°F")) {
+            readings.push({ room, value: unit === "°F" ? (value - 32) * 5 / 9 : value });
+          } else if (key === "humidity" && unit === "%" && value >= 0 && value <= 100) {
+            readings.push({ room, value });
+          }
+        }
+        if (!readings.length) return ["—", "Нет показаний"];
+        const mean = readings.reduce((sum, item) => sum + item.value, 0) / readings.length;
+        const caption = readings.length === 1 ? readings[0].room : "Среднее по комнатам";
+        const coverage = readings.length < sources.size ? " · " + readings.length + "/" + sources.size : "";
+        return [valueText(mean, suffix), caption + coverage];
+      });
+    }
+    if (lights.size) metric("Свет включён", () => {
+      const states = [...lights].map(id => this.state(id)?.state);
+      const known = states.filter(value => value === "on" || value === "off").length;
+      if (!known) return ["—", "Нет показаний"];
+      return [String(states.filter(value => value === "on").length), known < lights.size ? "Без связи: " + (lights.size - known) : "Во всём доме"];
+    });
+    if (this.config.power_meter) metric("Мощность", () => {
+      const meter = this.state(this.config.power_meter);
+      const value = numeric(meter?.state);
+      const unit = meter?.attributes?.unit_of_measurement;
+      if (!available(meter) || value === null || !["W", "kW"].includes(unit)) return ["—", "Нет показаний"];
+      return [valueText(value, unit === "kW" ? " кВт" : " Вт"), meter.attributes.friendly_name || this.config.power_meter];
+    });
+    strip.hidden = !strip.childElementCount;
+    return strip;
+  }
+
   renderHome() {
     const grid = element("div", "overview-grid");
     const left = element("div", "stack");
@@ -314,15 +374,14 @@ class MoyDomPanel extends HTMLElement {
     const hero = element("section", "hero");
     const header = element("div", "hero-row");
     const title = element("div");
-    const count = element("div", "hero-muted");
-    title.append(element("h1", "", "Дом"), count);
+    title.append(element("h1", "", "Дом сейчас"));
     const weather = element("div", "weather");
     header.append(title, weather);
     const actions = element("div", "hero-row hero-actions");
     const off = button("Погасить свет", () => this.confirmZoneOff(), "quiet");
     off.hidden = !this.zoneLights.length;
     actions.append(element("span", "", this.zones[this.zone].name), off);
-    hero.append(header, actions);
+    hero.append(header, this.homeReadings(), actions);
     const quick = element("section", "room");
     quick.append(element("h2", "", "Быстрый свет"));
     for (const [id, name] of this.quick) quick.append(this.lightView(id, name, "Быстрый свет", false));
@@ -355,15 +414,12 @@ class MoyDomPanel extends HTMLElement {
     }
     this.bindings.push(() => {
       const outdoor = this.state(this.config.outdoor_temperature);
-      setText(weather, available(outdoor) ? valueText(outdoor.state, "°") + " на улице" : "");
+      setText(weather, this.connected && available(outdoor) ? valueText(outdoor.state, "°") + " на улице" : "");
       const lights = this.zoneLights;
       const on = lights.filter(({id}) => this.state(id)?.state === "on");
       const pending = lights.some(({id}) => this.pending.has(id));
       off.disabled = !this.connected || !on.length || pending;
       setText(off, pending ? "Ожидание…" : "Погасить свет");
-      const total = new Set(this.zones.flatMap(zone => zone.rooms).flatMap(room => room.lights ?? [])
-        .filter(([id]) => this.state(id)?.state === "on").map(([id]) => id)).size;
-      setText(count, this.connected ? "Включено светильников: " + total : "Нет связи");
       const unavailable = lights.filter(({id}) => !available(this.state(id)));
       const rooms = [...new Set(unavailable.map(({name}) => name.split(" — ")[0]))];
       issues.hidden = !this.connected || !unavailable.length;
@@ -399,7 +455,7 @@ class MoyDomPanel extends HTMLElement {
         item.disabled = !this.connected || !entity;
       });
     }
-    if (statuses.childElementCount) header.after(statuses);
+    if (statuses.childElementCount) actions.before(statuses);
     left.append(hero);
     if (this.config.home_scenes?.length) {
       const scenes = element("section", "room");
@@ -1034,6 +1090,12 @@ dialog::backdrop {background:#0b111ab5}
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more) {
   .thermostat-sheet {background:var(--paper);backdrop-filter:none}
 }
+.home-readings {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100px,100%),1fr));gap:14px 8px;margin:20px 0 14px}
+.home-metric {min-width:0;display:grid;align-content:start;gap:4px}
+.home-metric span,.home-metric small {font-size:.76rem;line-height:1.25;color:var(--hero-muted);overflow-wrap:anywhere}
+.home-metric strong {font-size:clamp(1.4rem,3vw,2rem);letter-spacing:-.04em;font-weight:600;font-variant-numeric:tabular-nums}
+@media(max-width:780px) {.home-readings {grid-template-columns:repeat(3,minmax(0,1fr))}
+.home-readings:has(>.home-metric:nth-child(4)) {grid-template-columns:repeat(2,minmax(0,1fr))}}
 .home-status {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(125px,100%),1fr));gap:8px;margin:16px 0}
 .status-item {display:grid;grid-template-columns:22px 1fr;align-content:center;align-items:center;gap:4px 8px;text-align:left;padding:10px;
   background:rgb(255 255 255 / .07);border:1px solid rgb(255 255 255 / .17);border-radius:14px;color:var(--hero-text)}
