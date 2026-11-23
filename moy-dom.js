@@ -1240,8 +1240,8 @@ dialog .primary {margin-top:14px}
 .home-metric:nth-child(4) small {grid-column:1/-1}
 .metric-label {display:flex;align-items:center;gap:4px;color:var(--summary-blue);font-size:.81rem;font-weight:550;line-height:1.2}
 .metric-label .pictogram {width:15px;height:15px}
-.home-metric strong {font-size:clamp(1.2rem,6.8cqw,1.75rem);font-variant-numeric:tabular-nums;
-  letter-spacing:-.047em;font-weight:570;line-height:1.2;overflow-wrap:anywhere}
+.home-metric strong {font-size:clamp(1.1rem,5.55cqw,1.35rem);font-variant-numeric:tabular-nums;
+  letter-spacing:-.018em;font-weight:400;line-height:1.3;overflow-wrap:anywhere}
 .home-metric strong.word-value {font-size:1rem;letter-spacing:0}
 .home-metric[data-kind=lights] {padding-inline-end:2px}
 .home-metric small {font-size:.77rem;line-height:1.3;color:var(--summary-note);overflow-wrap:anywhere}
