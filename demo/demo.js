@@ -5,8 +5,11 @@ const floors = {
   garden: { name: "Участок", level: 2 },
 };
 const areas = {
-  living: { name: "Гостиная", floor_id: "downstairs" },
-  kitchen: { name: "Кухня", floor_id: "downstairs" },
+  living: { name: "Кухня-гостиная", floor_id: "downstairs" },
+  bath: { name: "Ванная", floor_id: "downstairs" },
+  veranda: { name: "Веранда", floor_id: "downstairs" },
+  landing: { name: "Тамбур", floor_id: "upstairs" },
+  dressing: { name: "Гардероб", floor_id: "upstairs" },
   hall: { name: "Прихожая", floor_id: "downstairs" },
   bedroom: { name: "Спальня", floor_id: "upstairs" },
   yard: { name: "Сад", floor_id: "garden" },
@@ -18,28 +21,38 @@ function add(entity_id, friendly_name, state, area_id, attributes = {}) {
   if (area_id) entities[entity_id] = { area_id };
 }
 add("light.living_main", "Потолочный свет", "on", "living", { brightness: 184, supported_color_modes: ["brightness"] });
-add("light.living_floor", "Торшер", "off", "living");
-add("light.living_strip", "Подсветка", "on", "living");
-add("light.kitchen", "Свет на кухне", "off", "kitchen");
+add("light.bath", "Основной свет", "off", "bath");
+add("light.living_strip", "LED-подсветка", "on", "living");
+add("light.kitchen", "Свет на кухне", "off", "living");
 add("light.hall", "Свет в прихожей", "unavailable", "hall");
+add("light.porch", "Свет веранды", "off", "veranda");
+add("light.landing", "Основной свет", "off", "landing");
+add("light.dressing", "Основной свет", "off", "dressing");
 add("light.pendant", "Подвес", "off", "bedroom", { icon: "mdi:ceiling-light" });
 add("light.spots", "Точечный свет", "off", "bedroom", { icon: "mdi:track-light" });
 add("light.bedside", "Ночник", "on", "bedroom", { icon: "mdi:lamp" });
 add("light.yard", "Садовые фонари", "off", "yard");
-add("sensor.living_temperature", "Температура гостиной", "22.8", "living", { device_class: "temperature", unit_of_measurement: "°C" });
-add("sensor.kitchen_temperature", "Температура кухни", "23.4", "kitchen", { device_class: "temperature", unit_of_measurement: "°C" });
+add("sensor.living_temperature", "Температура гостиной", "23.2", "living", { device_class: "temperature", unit_of_measurement: "°C" });
+add("sensor.veranda_temperature", "Температура веранды", "10.5", "veranda", { device_class: "temperature", unit_of_measurement: "°C" });
 add("sensor.living_humidity", "Влажность гостиной", "52", "living", { device_class: "humidity", unit_of_measurement: "%" });
-add("sensor.bedroom_temperature", "Температура спальни", "21.6", "bedroom", { device_class: "temperature", unit_of_measurement: "°C" });
+add("sensor.bedroom_temperature", "Температура спальни", "23.7", "bedroom", { device_class: "temperature", unit_of_measurement: "°C" });
 add("sensor.bedroom_humidity", "Влажность спальни", "46", "bedroom", { device_class: "humidity", unit_of_measurement: "%" });
-add("sensor.outdoor_temperature", "Температура на улице", "14", null);
+add("sensor.outdoor_temperature", "Температура на улице", "14", null, { unit_of_measurement:"°C" });
 add("climate.living", "Термостат гостиной", "heat", "living", {
-  current_temperature: 22.8, temperature: 23, min_temp: 16, max_temp: 30,
+  current_temperature: 23.2, temperature: 23, min_temp: 16, max_temp: 30,
   target_temp_step: 0.5, hvac_modes: ["off", "heat", "cool"], hvac_action: "idle",
   preset_modes: ["none", "eco", "sleep"], preset_mode: "none",
 });
 add("climate.bedroom", "Термостат спальни", "heat", "bedroom", {
-  ...states["climate.living"].attributes, friendly_name: "Термостат спальни", current_temperature: 21.6,
+  ...states["climate.living"].attributes, friendly_name: "Термостат спальни", current_temperature: 23.7,
 });
+add("climate.living_remote", "Пульт кухни-гостиной", "off", "living");
+add("climate.bedroom_remote", "Пульт спальни", "off", "bedroom");
+add("climate.veranda", "Термостат веранды", "heat", "veranda", {
+  ...states["climate.living"].attributes, current_temperature:10.5, temperature:8, min_temp:3,
+});
+add("sensor.system_status", "Состояние системы", "В сети", null);
+add("automation.night", "Ночное освещение", "on", null);
 add("camera.entry", "Входная камера", "idle", null);
 add("alarm_control_panel.home", "Охрана", "disarmed", null);
 add("vacuum.robot", "Робот-пылесос", "docked", null);
@@ -80,7 +93,15 @@ async function callService(domain, service, data, { entity_id }) {
 const params = new URLSearchParams(location.search);
 const previewPower = params.get("meter") === "heater";
 if (previewPower) add("sensor.heater_power", "Розетка конвектора", "840", null, { device_class:"power", unit_of_measurement:"W" });
+const layout = discover({ states, entities, areas, floors, devices });
+for (const room of layout.zones.flatMap(zone => zone.rooms)) {
+  const remote = room.details.find(([id]) => id.endsWith("_remote"));
+  if (remote) room.ir = remote[0];
+}
 card.setConfig({
+  zones: layout.zones,
+  more: [...layout.more, ["Автоматизация ночного света", "automation.night"], ["Состояние системы", "sensor.system_status"]],
+  quick_lights: [["light.bedside", "Ночник"]],
   summary_rooms: ["area:living", "area:bedroom"],
   ...(previewPower ? { power_meter: "sensor.heater_power" } : {}),
   outdoor_temperature: "sensor.outdoor_temperature", presence: "binary_sensor.occupied", alarm: "alarm_control_panel.home",
@@ -88,25 +109,20 @@ card.setConfig({
 });
 publish();
 const panel = card.querySelector("moy-dom-panel");
-if (params.get("view") === "home") panel.select(0, "rooms");
+if (params.get("view") === "home") panel.select(0, "home");
 if (params.get("room") === "bedroom") {
   panel.zone = panel.zones.findIndex(zone => zone.rooms.some(room => room.id === "area:bedroom"));
   panel.room = panel.zones[panel.zone].rooms.find(room => room.id === "area:bedroom");
   panel.section = "rooms";
   panel.renderSection();
 }
-const picker = document.getElementById("theme");
 const requested = params.get("theme");
 if (requested === "dark" || requested === "light") panel.theme = requested;
-picker.value = panel.theme;
-picker.addEventListener("change", () => {
-  panel.theme = picker.value;
-  try { localStorage.setItem("moy-dom-theme", picker.value); } catch { /* Optional preference. */ }
-  const option = panel.shadowRoot.querySelector('input[name="theme"][value="' + picker.value + '"]');
-  if (option) option.checked = true;
-  panel.updateTheme();
-});
-panel.shadowRoot.addEventListener("change", () => { picker.value = panel.theme; });
+const badge = document.createElement("small");
+badge.className = "demo-badge";
+badge.textContent = "Демо";
+badge.title = "Виртуальные устройства";
+panel.shadowRoot.querySelector(".toolbar > strong").append(badge);
 panel.updateTheme();
 
 if (params.get("view") === "climate" && panel.room?.climate) panel.openClimate(panel.room);

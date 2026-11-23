@@ -7,14 +7,8 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; background: #161c24; color: #edf1f8; font: 15px system-ui, sans-serif; }
-    .demo-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
-      padding: 12px clamp(12px, 4vw, 32px); background: #10151d; color: #f2f6fd; }
-    .demo-bar small { display: block; color: #abb9ca; margin-top: 3px; }
-    .controls { display: flex; flex-wrap: wrap; gap: 8px; }
-    select, button { font: inherit; }
-    select { min-height: 44px; border: 1px solid #566477; border-radius: 8px; padding: 4px 10px;
-      background: #222c39; color: white; }
-    moy-dom-dashboard, moy-dom-panel { display: block; min-height: calc(100dvh - 68px); }
+    button { font: inherit; }
+    moy-dom-dashboard, moy-dom-panel { display: block; min-height: 100dvh; }
     dialog { max-width: calc(100% - 24px); border: 0; border-radius: 12px; padding: 20px; }
     #details {width:min(360px,calc(100% - 24px));font:inherit;color:#f3f6fa;background:#202b3c;border:1px solid #657083;border-radius:18px;}
     #details form {display:flex;gap:8px;flex-wrap:wrap} #details button {min-height:44px;padding:0 12px;border:0;border-radius:10px}
@@ -22,15 +16,6 @@
   </style>
 </head>
 <body>
-  <header class="demo-bar">
-    <div><strong>Демо Home Panel</strong><small>Виртуальные устройства</small></div>
-    <div class="controls">
-      <select id="theme" aria-label="Режим оформления">
-        <option value="light">Светлая</option>
-        <option value="dark">Тёмная</option>
-      </select>
-    </div>
-  </header>
   <moy-dom-dashboard></moy-dom-dashboard>
   <dialog id="details"><h2></h2><p></p><form method="dialog"><button>Закрыть</button></form></dialog>
   <script src="../moy-dom.js"></script>
